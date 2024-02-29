@@ -39,7 +39,10 @@ class Leakage:
             raise Exception("Attacker_D Missing!")
         self.attacker_D = self.model_params["attacker_D"]
         if(type(self.model_params.get("sameModel",None))==None):
-            self.attacker_M = self.model_params["attacker_M"]
+            try:
+                self.attacker_M = self.model_params["attacker_M"]
+            except KeyError:
+                raise Exception("Attacker_M is Missing!")
         else:
             self.attacker_M = self.attacker_D.copy()
         print("Model Initialized")
