@@ -135,6 +135,43 @@ class Leakage:
             if metric == "mse":
                 self.metric = torch.nn.MSELoss()
             else:
-                raise Exception("Metric Option given is unavailable.")
+                raise ValueError("Metric Option given is unavailable.")
         else:
-            raise Exception("Invalid Metric Given.")
+            raise ValueError("Invalid Metric Given.")
+
+    def getAmortizedLeakage(
+        self,
+        feat: torch.tensor,
+        data: torch.tensor,
+        pred: torch.tensor,
+        num_trials: int = 10,
+        method: str = "mean"
+    ) -> tuple[torch.tensor, torch.tensor]:
+        vals = torch.zeros(num_trials)
+        for i in range(num_trials):
+            print(f"Working on Trial: {i}")
+            vals[i] = self.calcLeak(feat, data, pred)
+        if (method == "mean"):
+            return torch.mean(vals), torch.std(vals)
+        elif (method == "median"):
+            return torch.median(vals), torch.std(vals)
+        else:
+            raise ValueError("Invalid Method given for Amortization.")
+
+
+if "__name__" == "__main__":
+    # Test case
+    
+    # Data Initialization
+    feat = torch.zeros(8, 1)
+    feat[4:] = 1
+    data = torch.zeros([i % 2 for i in range(8)]).reshape(8, 1)
+    pred = data.copy()
+    pred[2], pred[5] = pred[5], pred[2]
+    
+    # Calculating Params
+    model_acc = torch.sum(pred==data)
+    
+    # Parameter Initialization
+    
+    
