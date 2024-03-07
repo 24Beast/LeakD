@@ -1,8 +1,9 @@
 # Importing Libraries
 import torch
 import numpy as np
+import torch.optim as optim
 from typing import Callable, Union
-
+from attackerModels.ANN import simpleDenseModel
 
 # Main class
 class Leakage:
@@ -176,17 +177,23 @@ class Leakage:
             raise ValueError("Invalid Method given for Amortization.")
 
 
-if "__name__" == "__main__":
+if __name__ == "__main__":
     # Test case
 
     # Data Initialization
-    feat = torch.zeros(8, 1)
-    feat[4:] = 1
-    data = torch.zeros([i % 2 for i in range(8)]).reshape(8, 1)
-    pred = data.copy()
-    pred[2], pred[5] = pred[5], pred[2]
+    from utils.datacreator import dataCreator
+
+    P, D, M1, M2 = dataCreator(256, 0.1)    
+    P = torch.tensor(P)
+    D = torch.tensor(D)
+    M1 = torch.tensor(M1)
+    M2 = torch.tensor(M2)
 
     # Calculating Params
-    model_acc = torch.sum(pred == data)
+    model_1_acc = torch.sum(D==M1)/D.shape[0]
+    model_2_acc = torch.sum(D==M2)/D.shape[0]
 
     # Parameter Initialization
+    
+    # Attacker Model Initialization
+    attackerModel = simpleDenseModel(1, 1)

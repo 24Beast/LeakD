@@ -5,6 +5,7 @@ import numpy as np
 
 # dataCreator function
 def dataCreator(N=512, error_percent=0.1, shuffle=False):
+    error_percent = error_percent/2
     if N < 3 or type(N) != int:
         raise ValueError("Expected Integer Value about 2 for N.")
     if 0 <= error_percent <= 0.25:
