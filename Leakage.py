@@ -41,6 +41,7 @@ class Leakage:
         self.train_params = train_params
         self.model_attacker_trained = False
         self.model_acc = model_acc
+        self.loss_functions = {} # a dictionary that maps string names inputted by the user to torch loss functions
         self.initEvalMetric(eval_metric)
 
     def calcLeak(
@@ -84,6 +85,22 @@ class Leakage:
                 return
         self.defineModel()
         pass
+
+        criterion = self.loss_functions[self.train_params["loss_function"]]
+        optimizer = optim.Adam(model.parameters(), lr=self.train_params["learning_rate"])
+
+        # Training loop
+        for epoch in range(self.train_params["epochs"]):
+            # Forward pass
+            outputs = model(x)
+            loss = criterion(outputs, y)
+
+            # Backward pass and optimization
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        print("Model training completed")
 
     def calcLambda(
         self, model: torch.nn.Module, x: torch.tensor, y: torch.tensor
