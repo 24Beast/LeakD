@@ -1,6 +1,7 @@
 # Importing Libraries
 import torch
 import numpy as np
+import math
 import torch.optim as optim
 from typing import Callable, Union
 from attackerModels.ANN import simpleDenseModel
@@ -24,7 +25,10 @@ class Leakage:
             {"attacker_D" : model_d, "attacker_M" : model_m} or
             {"attacker_D" : model_d, "attacker_M" : model_m, "sameModel" : False}
         train_params : dict
-            DESCRIPTION. *Rahul can you please fill this*
+            {"learning_rate": The learning rate hyperparameter, 
+            "loss_function": The loss function to be used -- options: "mse" and "cross-entropy", 
+            "epochs": Number of training epochs to be set,
+            "batch_size: Number of batches per epoch}
         model_acc : float
             The accuracy of the model being tested for quality equalization.
         eval_metric : Union[Callable,str], optional
@@ -43,9 +47,11 @@ class Leakage:
         self.train_params = train_params
         self.model_attacker_trained = False
         self.model_acc = model_acc
-        self.loss_functions = (
-            {}
-        )  # a dictionary that maps string names inputted by the user to torch loss functions
+
+        self.loss_functions = {"mse": torch.nn.MSELoss(), 
+                               "cross-entropy": torch.nn.CrossEntropyLoss()
+                               } 
+
         self.initEvalMetric(eval_metric)
 
     def calcLeak(
@@ -91,20 +97,26 @@ class Leakage:
         pass
 
         criterion = self.loss_functions[self.train_params["loss_function"]]
-        optimizer = optim.Adam(
-            model.parameters(), lr=self.train_params["learning_rate"]
-        )
+        optimizer = optim.Adam(model.parameters(), lr=self.train_params["learning_rate"])
+        batches = math.ceil(len(x) / self.train_params["batch_size"])
 
         # Training loop
         for epoch in range(self.train_params["epochs"]):
-            # Forward pass
-            outputs = model(x)
-            loss = criterion(outputs, y)
+            start = 0
+            for batch_num in batches:
+                x_batch = x[start : (start + self.train_params["batch_size"])]
+                y_batch = y[start : (start + self.train_params["batch_size"])]
 
-            # Backward pass and optimization
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                # Forward pass
+                outputs = model(x_batch)
+                loss = criterion(outputs, y_batch)
+
+                # Backward pass and optimization
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                start+=self.train_params["batch_size"]
 
         print("Model training completed")
 
@@ -182,23 +194,27 @@ class Leakage:
             raise ValueError("Invalid Method given for Amortization.")
 
 
-if __name__ == "__main__":
+if "__name__" == "__main__":
     # Test case
+    
+    from attackerModels.ANN import simpleDenseModel
 
     # Data Initialization
-    from utils.datacreator import dataCreator
-
-    P, D, M1, M2 = dataCreator(256, 0.1)
-    P = torch.tensor(P)
-    D = torch.tensor(D)
-    M1 = torch.tensor(M1)
-    M2 = torch.tensor(M2)
+    feat = torch.zeros(8, 1)
+    feat[4:] = 1
+    data = torch.zeros([i % 2 for i in range(8)]).reshape(8, 1)
+    pred = data.copy()
+    pred[2], pred[5] = pred[5], pred[2]
 
     # Calculating Params
-    model_1_acc = torch.sum(D == M1) / D.shape[0]
-    model_2_acc = torch.sum(D == M2) / D.shape[0]
+    model_acc = torch.sum(pred == data)
 
     # Parameter Initialization
+    attacker_model = simpleDenseModel(1, 1)
 
-    # Attacker Model Initialization
-    attackerModel = simpleDenseModel(1, 1)
+    leakage_obj = Leakage({"attacker_D" : attacker_model, "sameModel" : True}, 
+                          {"learning_rate": 0.01, "loss_function": "cross-entropy", "epochs": 100, "batch_size": 10},
+                           model_acc,
+                  )
+    
+    leakage_obj.train(attacker_model, feat, pred, "Model")
