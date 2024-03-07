@@ -5,6 +5,7 @@ import torch.optim as optim
 from typing import Callable, Union
 from attackerModels.ANN import simpleDenseModel
 
+
 # Main class
 class Leakage:
     def __init__(
@@ -42,7 +43,9 @@ class Leakage:
         self.train_params = train_params
         self.model_attacker_trained = False
         self.model_acc = model_acc
-        self.loss_functions = {} # a dictionary that maps string names inputted by the user to torch loss functions
+        self.loss_functions = (
+            {}
+        )  # a dictionary that maps string names inputted by the user to torch loss functions
         self.initEvalMetric(eval_metric)
 
     def calcLeak(
@@ -88,7 +91,9 @@ class Leakage:
         pass
 
         criterion = self.loss_functions[self.train_params["loss_function"]]
-        optimizer = optim.Adam(model.parameters(), lr=self.train_params["learning_rate"])
+        optimizer = optim.Adam(
+            model.parameters(), lr=self.train_params["learning_rate"]
+        )
 
         # Training loop
         for epoch in range(self.train_params["epochs"]):
@@ -183,17 +188,17 @@ if __name__ == "__main__":
     # Data Initialization
     from utils.datacreator import dataCreator
 
-    P, D, M1, M2 = dataCreator(256, 0.1)    
+    P, D, M1, M2 = dataCreator(256, 0.1)
     P = torch.tensor(P)
     D = torch.tensor(D)
     M1 = torch.tensor(M1)
     M2 = torch.tensor(M2)
 
     # Calculating Params
-    model_1_acc = torch.sum(D==M1)/D.shape[0]
-    model_2_acc = torch.sum(D==M2)/D.shape[0]
+    model_1_acc = torch.sum(D == M1) / D.shape[0]
+    model_2_acc = torch.sum(D == M2) / D.shape[0]
 
     # Parameter Initialization
-    
+
     # Attacker Model Initialization
     attackerModel = simpleDenseModel(1, 1)
