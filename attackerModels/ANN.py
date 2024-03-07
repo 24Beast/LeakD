@@ -23,7 +23,6 @@ class simpleDenseModel(nn.Module):
         self.filterActivations()
 
     def initLayers(self):
-        self.layers = []
         num_in = self.input_dims
         num_out = self.numFirst
         for i in range(1, self.num_layers + 1):
@@ -35,7 +34,7 @@ class simpleDenseModel(nn.Module):
                 num_out = num_out // 2
             else:
                 num_out = num_out * 2
-            self.layers.append(layer)
+            setattr(self, f"layer_{i-1}", layer)
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
@@ -50,14 +49,16 @@ class simpleDenseModel(nn.Module):
 
     def forward(self, x):
         for i in range(self.num_layers):
-            x = self.layer[i](x)
-            x = getattr(self, self.activations[i])
+            x = getattr(self, f"layer_{i}")(x)
+            x = getattr(self, self.activations[i])(x)
         return x
 
 
 if __name__ == "__main__":
-    attackerModel = simpleDenseModel(1, 1, 7)
+    attackerModel = simpleDenseModel(1, 1, 2, numFirst=4)
     print("Model Layers:")
-    print(*attackerModel.layers, sep="\n", end="\n\n")
+    for i in range(attackerModel.num_layers):
+        print(f"Layer {i} : {getattr(attackerModel,'layer_'+str(i))}")
+    # print(*attackerModel.layers, sep="\n", end="\n\n")
     print("Model Activations:")
     print(*attackerModel.activations, sep="\n", end="\n\n")

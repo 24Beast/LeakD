@@ -1,10 +1,10 @@
 # Importing Libraries
+import copy
+import math
 import torch
 import numpy as np
-import math
 import torch.optim as optim
 from typing import Callable, Union
-from attackerModels.ANN import simpleDenseModel
 
 
 # Main class
@@ -15,6 +15,7 @@ class Leakage:
         train_params: dict,
         model_acc: float,
         eval_metric: Union[Callable, str] = "mse",
+        threshold=True,
     ) -> None:
         """
         Parameters
@@ -25,8 +26,9 @@ class Leakage:
             {"attacker_D" : model_d, "attacker_M" : model_m} or
             {"attacker_D" : model_d, "attacker_M" : model_m, "sameModel" : False}
         train_params : dict
-            {"learning_rate": The learning rate hyperparameter, 
-            "loss_function": The loss function to be used -- options: "mse" and "cross-entropy", 
+            {"learning_rate": The learning rate hyperparameter,
+            "loss_function": The loss function to be used.
+                            Existing options: ["mse", "cross-entropy"],
             "epochs": Number of training epochs to be set,
             "batch_size: Number of batches per epoch}
         model_acc : float
@@ -34,7 +36,7 @@ class Leakage:
         eval_metric : Union[Callable,str], optional
             Either a Callable of the form eval_metric(y_pred, y)
             or a string to utilize exiting methods.
-            Existing options include ["mse"]
+            Existing options include ["accuracy"]
             The default is "mse".
 
         Returns
@@ -46,13 +48,21 @@ class Leakage:
         self.model_params = model_params
         self.train_params = train_params
         self.model_attacker_trained = False
+        self.threshold = threshold
         self.model_acc = model_acc
 
-        self.loss_functions = {"mse": torch.nn.MSELoss(), 
-                               "cross-entropy": torch.nn.CrossEntropyLoss()
-                               } 
-
+        self.loss_functions = {
+            "mse": torch.nn.MSELoss(),
+            "cross-entropy": torch.nn.CrossEntropyLoss(),
+            "bce": torch.nn.BCELoss(),
+        }
+        self.eval_functions = {
+            "accuracy": lambda y_pred, y: (y_pred == y).float().mean(),
+            "mse": lambda y_pred, y: ((y_pred - y) ** 2).float().mean(),
+            "bce": torch.nn.BCELoss(),
+        }
         self.initEvalMetric(eval_metric)
+        self.defineModel()
 
     def calcLeak(
         self, feat: torch.tensor, data: torch.tensor, pred: torch.tensor
@@ -76,9 +86,10 @@ class Leakage:
         pert_data = self.permuteData(data)
         self.train(self.attacker_D, pert_data, feat, "Data")
         self.train(self.attacker_M, pred, feat, "Model")
-        lamba_d = self.calcLambda(self.attacker_D, data, feat)
-        lamba_m = self.calcLambda(self.attacker_M, pred, feat)
-        leakage = lamba_m - lamba_d
+        lambda_d = self.calcLambda(self.attacker_D, pert_data, feat)
+        lambda_m = self.calcLambda(self.attacker_M, pred, feat)
+        print(f"{lambda_d=},\n{lambda_m=}")
+        leakage = lambda_m - lambda_d
         return leakage
 
     def train(
@@ -88,46 +99,62 @@ class Leakage:
         y: torch.tensor,
         attacker_mode: str,
     ) -> torch.tensor:
-        if attacker_mode == "Model":
-            if not (self.model_attacker_trained):
-                self.model_attacker_trained = True
-            else:
-                return
+        # if attacker_mode == "Model":
+        #     if not (self.model_attacker_trained):
+        #         self.model_attacker_trained = True
+        #     else:
+        #         return
         self.defineModel()
-        pass
 
         criterion = self.loss_functions[self.train_params["loss_function"]]
-        optimizer = optim.Adam(model.parameters(), lr=self.train_params["learning_rate"])
+        optimizer = optim.Adam(
+            model.parameters(), lr=self.train_params["learning_rate"]
+        )
         batches = math.ceil(len(x) / self.train_params["batch_size"])
 
+        print(f"Training Activated for Mode: {attacker_mode}")
+
         # Training loop
-        for epoch in range(self.train_params["epochs"]):
+        for epoch in range(1, self.train_params["epochs"] + 1):
+            perm = torch.randperm(x.shape[0])
+            x = x[perm]
+            y = y[perm]
             start = 0
-            for batch_num in batches:
+            running_loss = 0.0
+            # print(batches)
+            for batch_num in range(batches):
                 x_batch = x[start : (start + self.train_params["batch_size"])]
                 y_batch = y[start : (start + self.train_params["batch_size"])]
 
+                optimizer.zero_grad()
                 # Forward pass
                 outputs = model(x_batch)
+                # print(f"{outputs=}\n{y_batch=}")
                 loss = criterion(outputs, y_batch)
+                # print(f"{loss.item()=}")
 
                 # Backward pass and optimization
-                optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-                start+=self.train_params["batch_size"]
+                start += self.train_params["batch_size"]
+                running_loss += loss.item()
 
-        print("Model training completed")
+            avg_loss = running_loss / batches
+            if epoch % 10 == 0:
+                print(f"\rCurrent Epoch {epoch}: Loss = {avg_loss}", end="")
+
+        print("\nModel training completed")
 
     def calcLambda(
         self, model: torch.nn.Module, x: torch.tensor, y: torch.tensor
     ) -> torch.tensor:
         y_pred = model(x)
+        if self.threshold:
+            y_pred = y_pred > 0.5
         return self.eval_metric(y_pred, y)
 
     def defineModel(self) -> None:
-        print("Initializaing Model")
         if type(self.model_params.get("attacker_D", None)) == None:
             raise Exception("Attacker_D Missing!")
         self.attacker_D = self.model_params["attacker_D"]
@@ -137,8 +164,7 @@ class Leakage:
             except KeyError:
                 raise Exception("Attacker_M is Missing!")
         else:
-            self.attacker_M = self.attacker_D.copy()
-        print("Model Initialized")
+            self.attacker_M = copy.deepcopy(self.attacker_D)
 
     def permuteData(self, data: torch.tensor) -> torch.tensor:
         """
@@ -157,7 +183,7 @@ class Leakage:
         if self.model_acc > 1:
             self.model_acc = self.model_acc / 100
         num_observations = data.shape[0]
-        rand_vect = torch.zeros(num_observations)
+        rand_vect = torch.zeros((num_observations, 1))
         rand_vect[: int(self.model_acc * num_observations)] = 1
         rand_vect = rand_vect[torch.randperm(num_observations)]
         new_data = rand_vect * (data) + (1 - rand_vect) * (1 - data)
@@ -167,8 +193,8 @@ class Leakage:
         if callable(metric):
             self.eval_metric = metric
         elif type(metric) == str:
-            if metric == "mse":
-                self.metric = torch.nn.MSELoss()
+            if metric in self.eval_functions.keys():
+                self.eval_metric = self.eval_functions[metric]
             else:
                 raise ValueError("Metric Option given is unavailable.")
         else:
@@ -186,6 +212,7 @@ class Leakage:
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
             vals[i] = self.calcLeak(feat, data, pred)
+            print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return torch.mean(vals), torch.std(vals)
         elif method == "median":
@@ -194,27 +221,58 @@ class Leakage:
             raise ValueError("Invalid Method given for Amortization.")
 
 
-if "__name__" == "__main__":
+if __name__ == "__main__":
     # Test case
-    
     from attackerModels.ANN import simpleDenseModel
 
     # Data Initialization
-    feat = torch.zeros(8, 1)
-    feat[4:] = 1
-    data = torch.zeros([i % 2 for i in range(8)]).reshape(8, 1)
-    pred = data.copy()
-    pred[2], pred[5] = pred[5], pred[2]
+    from utils.datacreator import dataCreator
+
+    P, D, M1, M2 = dataCreator(512, 0.2)
+    P = torch.tensor(P, dtype=torch.float).reshape(-1, 1)
+    D = torch.tensor(D, dtype=torch.float).reshape(-1, 1)
+    M1 = torch.tensor(M1, dtype=torch.float).reshape(-1, 1)
+    M2 = torch.tensor(M2, dtype=torch.float).reshape(-1, 1)
 
     # Calculating Params
-    model_acc = torch.sum(pred == data)
+    model_1_acc = torch.sum(D == M1) / D.shape[0]
+    model_2_acc = torch.sum(D == M2) / D.shape[0]
 
     # Parameter Initialization
-    attacker_model = simpleDenseModel(1, 1)
 
-    leakage_obj = Leakage({"attacker_D" : attacker_model, "sameModel" : True}, 
-                          {"learning_rate": 0.01, "loss_function": "cross-entropy", "epochs": 100, "batch_size": 10},
-                           model_acc,
-                  )
-    
-    leakage_obj.train(attacker_model, feat, pred, "Model")
+    # Attacker Model Initialization
+    attackerModel = simpleDenseModel(
+        1, 1, 1, numFirst=1, activations=["sigmoid", "sigmoid", "sigmoid"]
+    )
+
+    # Parameter Initialization
+    leakage_1 = Leakage(
+        {"attacker_D": attackerModel, "sameModel": True},
+        {
+            "learning_rate": 0.05,
+            "loss_function": "bce",
+            "epochs": 100,
+            "batch_size": 512,
+        },
+        model_1_acc,
+        "bce",
+        threshold=False,
+    )
+
+    leakage_2 = Leakage(
+        {"attacker_D": attackerModel, "sameModel": True},
+        {
+            "learning_rate": 0.05,
+            "loss_function": "bce",
+            "epochs": 100,
+            "batch_size": 512,
+        },
+        model_2_acc,
+        "bce",
+        threshold=False,
+    )
+
+    leak_1 = leakage_1.getAmortizedLeakage(P, D, M1)
+    print(f"leakage for case 1: {leak_1}")
+    leak_2 = leakage_2.getAmortizedLeakage(P, D, M2)
+    print(f"leakage for case 2: {leak_2}")
