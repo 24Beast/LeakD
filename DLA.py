@@ -4,11 +4,11 @@ import math
 import torch
 import numpy as np
 import torch.optim as optim
-from typing import Callable, Union
+from typing import Callable, Union, Literal
 
 
 # Main class
-class Leakage:
+class DLA:
     def __init__(
         self,
         model_params: dict,
@@ -21,16 +21,20 @@ class Leakage:
         Parameters
         ----------
         model_params : dict
-            Dictionary of one of the following forms-
-            {"attacker_D" : model, "sameModel" : True} or
-            {"attacker_D" : model_d, "attacker_M" : model_m} or
-            {"attacker_D" : model_d, "attacker_M" : model_m, "sameModel" : False}
+            Dictionary of the following forms-
+            {"attacker_AtoT" : model_AT, "attacker_TtoA" : model_TA}
         train_params : dict
-            {"learning_rate": The learning rate hyperparameter,
-            "loss_function": The loss function to be used.
-                            Existing options: ["mse", "cross-entropy"],
-            "epochs": Number of training epochs to be set,
-            "batch_size: Number of batches per epoch}
+            {
+                "AtoT":
+                    {
+                        "learning_rate": The learning rate hyperparameter,
+                        "loss_function": The loss function to be used.
+                                Existing options: ["mse", "cross-entropy"],
+                        "epochs": Number of training epochs to be set,
+                        "batch_size: Number of batches per epoch
+                    },
+                "TtoA": {same format as AtoT}
+            }
         model_acc : float
             The accuracy of the model being tested for quality equalization.
         eval_metric : Union[Callable,str], optional
@@ -65,7 +69,7 @@ class Leakage:
         self.defineModel()
 
     def calcLeak(
-        self, feat: torch.tensor, data: torch.tensor, pred: torch.tensor
+        self, feat: torch.tensor, data: torch.tensor, pred: torch.tensor, mode: Literal["AtoT","TtoA"]
     ) -> torch.tensor:
         """
         Parameters
@@ -76,6 +80,8 @@ class Leakage:
             Ground truth data.
         pred : torch.tensor
             Predicted Values.
+        mode : Literal["AtoT","TtoA"]
+            Sets Direction of calculation.
 
         Returns
         -------
@@ -84,12 +90,12 @@ class Leakage:
 
         """
         pert_data = self.permuteData(data)
-        self.train(pert_data, feat, "Data")
-        lambda_d = self.calcLambda(self.attacker_D, pert_data, feat)
-        self.train(pred, feat, "Model")
-        lambda_m = self.calcLambda(self.attacker_M, pred, feat)
+        self.train(pert_data, feat, "D_" + mode)
+        lambda_d = self.calcLambda(getattr(self,"attacker_D_"+mode), pert_data, feat)
+        self.train(pred, feat, "M_" + mode)
+        lambda_m = self.calcLambda(getattr(self,"attacker_M_"+mode), pred, feat)
         print(f"{lambda_d=},\n{lambda_m=}")
-        leakage = lambda_m - lambda_d
+        leakage = (lambda_m - lambda_d) / (lambda_m + lambda_d)
         return leakage
 
     def train(
@@ -99,11 +105,7 @@ class Leakage:
         attacker_mode: str,
     ) -> torch.tensor:
         self.defineModel()
-        if attacker_mode == "Model":
-            model = self.attacker_M
-        else:
-            model = self.attacker_D
-
+        model = getattr(self, "attacker_" + attacker_mode)
         criterion = self.loss_functions[self.train_params["loss_function"]]
         optimizer = optim.Adam(
             model.parameters(), lr=self.train_params["learning_rate"]
@@ -153,16 +155,14 @@ class Leakage:
         return self.eval_metric(y_pred, y)
 
     def defineModel(self) -> None:
-        if type(self.model_params.get("attacker_D", None)) == None:
-            raise Exception("Attacker_D Missing!")
-        self.attacker_D = self.model_params["attacker_D"]
-        if type(self.model_params.get("sameModel", None)) == None:
-            try:
-                self.attacker_M = self.model_params["attacker_M"]
-            except KeyError:
-                raise Exception("Attacker_M is Missing!")
-        else:
-            self.attacker_M = copy.deepcopy(self.attacker_D)
+        if type(self.model_params.get("attacker_AtoT", None)) == None:
+            raise Exception("attacker_AtoT Model Missing!")
+        if type(self.model_params.get("attacker_TtoA", None)) == None:
+            raise Exception("attacker_TtoA Model Missing!")
+        self.attacker_D_AtoT = self.model_params["attacker_AtoT"]
+        self.attacker_M_AtoT = copy.deepcopy(self.attacker_D_AtoT)
+        self.attacker_D_TtoA = self.model_params["attacker_TtoA"]
+        self.attacker_M_TtoA = copy.deepcopy(self.attacker_D_TtoA)
 
     def permuteData(self, data: torch.tensor) -> torch.tensor:
         """
@@ -204,13 +204,14 @@ class Leakage:
         feat: torch.tensor,
         data: torch.tensor,
         pred: torch.tensor,
+        mode: Literal["AtoT", "TtoA"],
         num_trials: int = 10,
         method: str = "mean",
     ) -> tuple[torch.tensor, torch.tensor]:
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
-            vals[i] = self.calcLeak(feat, data, pred)
+            vals[i] = self.calcLeak(feat, data, pred, mode)
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return torch.mean(vals), torch.std(vals)
@@ -218,6 +219,19 @@ class Leakage:
             return torch.median(vals), torch.std(vals)
         else:
             raise ValueError("Invalid Method given for Amortization.")
+
+    def calcBidirectional(
+        self,
+        A: torch.tensor,
+        T: torch.tensor,
+        A_pred: torch.tensor,
+        T_pred: torch.tensor,
+        num_trials: int = 10,
+        method: str = "mean",
+    ) -> tuple[tuple[torch.tensor, torch.tensor], tuple[torch.tensor, torch.tensor]]:
+        AtoT_vals = self.getAmortizedLeakage(A, T, T_pred, num_trials, method)
+        TtoA_vals = self.getAmortizedLeakage(T, A, A_pred, num_trials, method)
+        return (AtoT_vals, TtoA_vals)
 
 
 if __name__ == "__main__":
@@ -246,8 +260,8 @@ if __name__ == "__main__":
     )
 
     # Parameter Initialization
-    leakage_1 = Leakage(
-        {"attacker_D": attackerModel, "sameModel": True},
+    leakage_1 = DLA(
+        {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
         {
             "learning_rate": 0.05,
             "loss_function": "bce",
@@ -259,8 +273,8 @@ if __name__ == "__main__":
         threshold=True,
     )
 
-    leakage_2 = Leakage(
-        {"attacker_D": attackerModel, "sameModel": True},
+    leakage_2 = DLA(
+        {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
         {
             "learning_rate": 0.05,
             "loss_function": "bce",
@@ -272,19 +286,19 @@ if __name__ == "__main__":
         threshold=True,
     )
 
-    leak_1 = leakage_1.getAmortizedLeakage(P, D, M1)
+    leak_1 = leakage_1.getAmortizedLeakage(P, D, M1,"AtoT")
     print(f"leakage for case 1: {leak_1}")
     print("______________________________________")
     print("______________________________________")
-    leak_2 = leakage_2.getAmortizedLeakage(P, D, M2)
+    leak_2 = leakage_2.getAmortizedLeakage(P, D, M2,"AtoT")
     print(f"leakage for case 2: {leak_2}")
     print("______________________________________")
     print("______________________________________")
-    leak_3 = leakage_2.getAmortizedLeakage(P, D2, M1)
+    leak_3 = leakage_2.getAmortizedLeakage(P, D2, M1,"AtoT")
     print(f"leakage for case 3: {leak_3}")
     print("______________________________________")
     print("______________________________________")
-    leak_4 = leakage_2.getAmortizedLeakage(P, D2, M2)
+    leak_4 = leakage_2.getAmortizedLeakage(P, D2, M2,"AtoT")
     print(f"leakage for case 4: {leak_4}")
     print("______________________________________")
     print("______________________________________")

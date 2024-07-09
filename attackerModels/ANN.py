@@ -25,6 +25,8 @@ class simpleDenseModel(nn.Module):
     def initLayers(self):
         num_in = self.input_dims
         num_out = self.numFirst
+        if self.num_layers == 1:
+            num_out = self.output_dims
         for i in range(1, self.num_layers + 1):
             layer = nn.Linear(num_in, num_out)
             num_in = num_out
