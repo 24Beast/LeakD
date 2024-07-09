@@ -69,7 +69,11 @@ class DLA:
         self.defineModel()
 
     def calcLeak(
-        self, feat: torch.tensor, data: torch.tensor, pred: torch.tensor, mode: Literal["AtoT","TtoA"]
+        self,
+        feat: torch.tensor,
+        data: torch.tensor,
+        pred: torch.tensor,
+        mode: Literal["AtoT", "TtoA"],
     ) -> torch.tensor:
         """
         Parameters
@@ -91,9 +95,9 @@ class DLA:
         """
         pert_data = self.permuteData(data)
         self.train(pert_data, feat, "D_" + mode)
-        lambda_d = self.calcLambda(getattr(self,"attacker_D_"+mode), pert_data, feat)
+        lambda_d = self.calcLambda(getattr(self, "attacker_D_" + mode), pert_data, feat)
         self.train(pred, feat, "M_" + mode)
-        lambda_m = self.calcLambda(getattr(self,"attacker_M_"+mode), pred, feat)
+        lambda_m = self.calcLambda(getattr(self, "attacker_M_" + mode), pred, feat)
         print(f"{lambda_d=},\n{lambda_m=}")
         leakage = (lambda_m - lambda_d) / (lambda_m + lambda_d)
         return leakage
@@ -286,19 +290,19 @@ if __name__ == "__main__":
         threshold=True,
     )
 
-    leak_1 = leakage_1.getAmortizedLeakage(P, D, M1,"AtoT")
+    leak_1 = leakage_1.getAmortizedLeakage(P, D, M1, "AtoT")
     print(f"leakage for case 1: {leak_1}")
     print("______________________________________")
     print("______________________________________")
-    leak_2 = leakage_2.getAmortizedLeakage(P, D, M2,"AtoT")
+    leak_2 = leakage_2.getAmortizedLeakage(P, D, M2, "AtoT")
     print(f"leakage for case 2: {leak_2}")
     print("______________________________________")
     print("______________________________________")
-    leak_3 = leakage_2.getAmortizedLeakage(P, D2, M1,"AtoT")
+    leak_3 = leakage_2.getAmortizedLeakage(P, D2, M1, "AtoT")
     print(f"leakage for case 3: {leak_3}")
     print("______________________________________")
     print("______________________________________")
-    leak_4 = leakage_2.getAmortizedLeakage(P, D2, M2,"AtoT")
+    leak_4 = leakage_2.getAmortizedLeakage(P, D2, M2, "AtoT")
     print(f"leakage for case 4: {leak_4}")
     print("______________________________________")
     print("______________________________________")
