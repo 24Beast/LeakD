@@ -213,9 +213,9 @@ class Leakage:
             vals[i] = self.calcLeak(feat, data, pred)
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
-            return torch.mean(vals), torch.std(vals)
+            return torch.mean(vals), torch.std(vals) / torch.sqrt(num_trials)
         elif method == "median":
-            return torch.median(vals), torch.std(vals)
+            return torch.median(vals), torch.std(vals) / torch.sqrt(num_trials)
         else:
             raise ValueError("Invalid Method given for Amortization.")
 
