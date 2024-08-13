@@ -59,7 +59,7 @@ class Leakage:
         self.eval_functions = {
             "accuracy": lambda y_pred, y: (y_pred == y).float().mean(),
             "mse": lambda y_pred, y: ((y_pred - y) ** 2).float().mean(),
-            "bce": torch.nn.BCELoss(),
+            "bce": -1 * torch.nn.BCELoss(),
         }
         self.initEvalMetric(eval_metric)
         self.defineModel()
