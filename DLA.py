@@ -18,7 +18,8 @@ class DLA:
         self,
         model_params: dict,
         train_params: dict,
-        model_acc: float,
+        A_accuracy: float,
+        T_accuracy: float,
         eval_metric: Union[Callable, str] = "mse",
         threshold=True,
     ) -> None:
@@ -40,8 +41,10 @@ class DLA:
                     },
                 "TtoA": {same format as AtoT}
             }
-        model_acc : float
-            The accuracy of the model being tested for quality equalization.
+        A_accuracy : float
+            The accuracy of the Attribute predicting model being tested for quality equalization.
+        T_acc : float
+            The accuracy of the Task predicting model being tested for quality equalization.
         eval_metric : Union[Callable,str], optional
             Either a Callable of the form eval_metric(y_pred, y)
             or a string to utilize exiting methods.
@@ -58,7 +61,8 @@ class DLA:
         self.train_params = train_params
         self.model_attacker_trained = False
         self.threshold = threshold
-        self.model_acc = model_acc
+        self.A_acc = A_accuracy
+        self.T_acc = T_accuracy
 
         self.loss_functions = {
             "mse": torch.nn.MSELoss(),
@@ -99,7 +103,10 @@ class DLA:
             Evaluated Leakage.
 
         """
-        pert_data = self.permuteData(data)
+        if(mode == "TtoA"):
+            pert_data = self.permuteData(data, A_acc)
+        else:
+            pert_data = self.permuteData(data, T_acc)
         self.train(feat, pert_data, "D_" + mode)
         lambda_d = self.calcLambda(getattr(self, "attacker_D_" + mode), pert_data, feat)
         self.train(feat, pred, "M_" + mode)
@@ -176,7 +183,7 @@ class DLA:
         self.attacker_D_TtoA = self.model_params["attacker_TtoA"]
         self.attacker_M_TtoA = copy.deepcopy(self.attacker_D_TtoA)
 
-    def permuteData(self, data: torch.tensor) -> torch.tensor:
+    def permuteData(self, data: torch.tensor, accuracy: float) -> torch.tensor:
         """
         Currently assumes ground truth data to be binary values in a pytorch tensor.
         Should work for any NxM type array.
@@ -186,16 +193,19 @@ class DLA:
         data : torch.tensor
             Original ground truth data.
 
+        accuracy : float
+            Accuracy of the model. Used for quality equalization.
+
         Returns
         -------
         new_data : torch.tensor
             Randomly pertubed data for quality equalization.
         """
-        if self.model_acc > 1:
-            self.model_acc = self.model_acc / 100
+        if accuracy > 1:
+            accuracy = accuracy / 100
         num_observations = data.shape[0]
         rand_vect = torch.zeros((num_observations, 1))
-        rand_vect[: int(self.model_acc * num_observations)] = 1
+        rand_vect[: int(accuracy * num_observations)] = 1
         rand_vect = rand_vect[torch.randperm(num_observations)]
         new_data = rand_vect * (data) + (1 - rand_vect) * (1 - data)
         return new_data
@@ -283,6 +293,7 @@ if __name__ == "__main__":
             "batch_size": 64,
         },
         model_1_acc,
+        model_1_acc,
         "accuracy",
         threshold=True,
     )
@@ -295,6 +306,7 @@ if __name__ == "__main__":
             "epochs": 100,
             "batch_size": 64,
         },
+        model_2_acc,
         model_2_acc,
         "accuracy",
         threshold=True,
