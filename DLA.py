@@ -243,8 +243,8 @@ class DLA:
         method: str = "mean",
         normalized: bool = True,
     ) -> tuple[tuple[torch.tensor, torch.tensor], tuple[torch.tensor, torch.tensor]]:
-        AtoT_vals = self.getAmortizedLeakage(A, T, T_pred, num_trials, method, normalized)
-        TtoA_vals = self.getAmortizedLeakage(T, A, A_pred, num_trials, method, normalized)
+        AtoT_vals = self.getAmortizedLeakage(A, T, T_pred, "AtoT", num_trials, method, normalized)
+        TtoA_vals = self.getAmortizedLeakage(T, A, A_pred, "TtoA", num_trials, method, normalized)
         return (AtoT_vals, TtoA_vals)
 
 
