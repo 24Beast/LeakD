@@ -171,6 +171,7 @@ class DLA:
         y_pred = model(x)
         if self.threshold:
             y_pred = y_pred > 0.5
+            y = y > 0.5
         return self.eval_metric(y_pred, y)
 
     def defineModel(self) -> None:
