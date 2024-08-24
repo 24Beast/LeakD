@@ -108,9 +108,9 @@ class DLA:
         else:
             pert_data = self.permuteData(data, self.T_acc)
         self.train(feat, pert_data, "D_" + mode)
-        lambda_d = self.calcLambda(getattr(self, "attacker_D_" + mode), pert_data, feat)
+        lambda_d = self.calcLambda(getattr(self, "attacker_D_" + mode), feat, pert_data)
         self.train(feat, pred, "M_" + mode)
-        lambda_m = self.calcLambda(getattr(self, "attacker_M_" + mode), pred, feat)
+        lambda_m = self.calcLambda(getattr(self, "attacker_M_" + mode), feat, pred)
         print(f"{lambda_d=},\n{lambda_m=}")
         leakage_amp = lambda_m - lambda_d
         if(normalized):
