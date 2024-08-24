@@ -104,9 +104,9 @@ class DLA:
 
         """
         if(mode == "TtoA"):
-            pert_data = self.permuteData(data, A_acc)
+            pert_data = self.permuteData(data, self.A_acc)
         else:
-            pert_data = self.permuteData(data, T_acc)
+            pert_data = self.permuteData(data, self.T_acc)
         self.train(feat, pert_data, "D_" + mode)
         lambda_d = self.calcLambda(getattr(self, "attacker_D_" + mode), pert_data, feat)
         self.train(feat, pred, "M_" + mode)
