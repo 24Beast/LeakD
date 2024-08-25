@@ -10,7 +10,7 @@ from typing import Callable, Union, Literal
 # Helper Functions
 BCE_loss_instance = torch.nn.BCELoss()
 def ModifiedBCELoss(y_pred, y):
-    return -1 * BCE_loss_instance(y_pred,y)
+    return -1 * BCE_loss_instance(y_pred, y)
 
 # Main class
 class DLA:
@@ -171,7 +171,7 @@ class DLA:
         y_pred = model(x)
         if self.threshold:
             y_pred = y_pred > 0.5
-            y = y > 0.5
+        y = ytype(torch.float)
         return self.eval_metric(y_pred, y)
 
     def defineModel(self) -> None:
