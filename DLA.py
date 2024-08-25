@@ -171,7 +171,8 @@ class DLA:
         y_pred = model(x)
         if self.threshold:
             y_pred = y_pred > 0.5
-        y = ytype(torch.float)
+        y = y.type(torch.float)
+        y_pred = y_pred.type(torch.float)
         return self.eval_metric(y_pred, y)
 
     def defineModel(self) -> None:
