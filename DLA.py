@@ -10,7 +10,7 @@ from typing import Callable, Union, Literal
 # Helper Functions
 BCE_loss_instance = torch.nn.BCELoss()
 def ModifiedBCELoss(y_pred, y):
-    return -1 * BCE_loss_instance(y_pred, y)
+    return 1 / BCE_loss_instance(y_pred, y)
 
 # Main class
 class DLA:
