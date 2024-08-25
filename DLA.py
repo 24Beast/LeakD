@@ -239,9 +239,9 @@ class DLA:
             vals[i] = self.calcLeak(feat, data, pred, mode, normalized)
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
-            return torch.mean(vals), torch.std(vals)
+            return {"Mean" : torch.mean(vals), "std":  torch.std(vals), "num_trials" : num_trials} 
         elif method == "median":
-            return torch.median(vals), torch.std(vals)
+            return {"Median": torch.median(vals), "std": torch.std(vals), "num_trials" : num_trials}
         else:
             raise ValueError("Invalid Method given for Amortization.")
 
@@ -257,7 +257,7 @@ class DLA:
     ) -> tuple[tuple[torch.tensor, torch.tensor], tuple[torch.tensor, torch.tensor]]:
         AtoT_vals = self.getAmortizedLeakage(A, T, T_pred, "AtoT", num_trials, method, normalized)
         TtoA_vals = self.getAmortizedLeakage(T, A, A_pred, "TtoA", num_trials, method, normalized)
-        return (AtoT_vals, TtoA_vals)
+        return {"AtoT": AtoT_vals, "TtoA": TtoA_vals}
 
 
 if __name__ == "__main__":
