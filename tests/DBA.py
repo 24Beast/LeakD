@@ -62,7 +62,6 @@ class DirectionalBiasAmplification(evaluate.EvaluationModule):
         )
 
     def _compute(self, predictions, references, attributes):
-
         task_preds, task_labels, attribute_labels = (
             np.array(predictions),
             np.array(references),
@@ -125,7 +124,6 @@ class DirectionalBiasAmplification(evaluate.EvaluationModule):
 
 
 if __name__ == "__main__":
-
     # Data Initialization
     from utils.datacreator import dataCreator
 

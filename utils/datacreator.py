@@ -56,11 +56,25 @@ def dataCreator(N=512, error_percent=0.1, shuffle=False, data_error_percent=None
     return P, D, D_bias, M_unbias, M2
 
 
+# Stability Experiment
+
+
+def StabilityExp(N, data_error_w=0.5, model_error_w=0.2, poly_pow=4, data_range=(0, 1)):
+    data_min, data_max = data_range
+    A = data_min + (np.random.random(N) * (data_max - data_min))
+    coeffs = np.random.randint(10, size=1 + poly_pow)
+    polynom = np.poly1d(coeffs)
+    error = np.random.random(N)
+    D = polynom(A + data_error_w * error)
+    M = polynom(A + model_error_w * error)
+    return A, D, M
+
+
 # COMPAS Dataset
-COMPAS_SENSITIVE_ATTRS = [""]
+COMPAS_SENSITIVE_ATTRS = ["sex", "race", "age"]
 
 
-def COMPASData(attribute="race"):
+def COMPASData(attributes="race"):
     df = pd.read_csv(
         "https://raw.githubusercontent.com/propublica/compas-analysis/master/compas-scores-two-years.csv"
     )
@@ -75,7 +89,16 @@ def COMPASData(attribute="race"):
         & (df["c_charge_degree"] != "O")
         & (df["score_text"] != "N/A")
     ].reset_index(drop=True)
-
+    if type(attributes) == str:
+        attributes = [attributes]
+    for item in attributes:
+        if not (item in COMPAS_SENSITIVE_ATTRS):
+            raise Exception(
+                f"{item} not in known sensitive attribute list: {COMPAS_SENSITIVE_ATTRS}"
+            )
+        A = df[attributes].values
+        T = df["is_recid"].values
+        T_pred = df["two_year_recid"].values
     return df
 
 
