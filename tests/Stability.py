@@ -264,7 +264,7 @@ if __name__ == "__main__":
     POLY_POW = 2
     DATA_RANGE = (1, 5)
     ATTACKER_WIDTHS = [i for i in range(25, 501, 25)]
-    ATTACKER_DEPTHS = [i for i in range(0, 10)]
+    ATTACKER_DEPTHS = [i for i in range(2, 10)]
     OUTFILE = "results/Stability.json"
 
     P, D, M = StabilityExp(
@@ -284,7 +284,11 @@ if __name__ == "__main__":
             print(f"Working on Iteration {num}", flush=True)
             # Attacker Model Initialization
             attackerModel = simpleDenseModel(
-                1, 1, num_layers=depth , numFirst=width, activations=["relu", "relu", "relu"]
+                input_dims=1,
+                output_dims=1,
+                num_layers=depth,
+                numFirst=width,
+                activations=["relu", "relu", "relu"],
             )
 
             num_params = attackerModel.count_params()
