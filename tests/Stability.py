@@ -284,7 +284,7 @@ if __name__ == "__main__":
             print(f"Working on Iteration {num}", flush=True)
             # Attacker Model Initialization
             attackerModel = simpleDenseModel(
-                1, width, 1, numFirst=1, activations=["relu", "relu", "relu"]
+                1, 1, num_layers=depth , numFirst=width, activations=["relu", "relu", "relu"]
             )
 
             num_params = attackerModel.count_params()
