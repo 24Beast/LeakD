@@ -55,6 +55,9 @@ class simpleDenseModel(nn.Module):
             x = getattr(self, self.activations[i])(x)
         return x
 
+    def count_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
 
 if __name__ == "__main__":
     attackerModel = simpleDenseModel(1, 1, 2, numFirst=4)

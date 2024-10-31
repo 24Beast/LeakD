@@ -248,20 +248,24 @@ class Leakage:
 
 if __name__ == "__main__":
     # Test case
+    import os
+    import sys
     import json
-    import pandas as pd
-    from ..attackerModels.ANN import simpleDenseModel
+
+    sys.path.append("../")
+    from attackerModels.ANN import simpleDenseModel
 
     # Data Initialization
-    from ..utils.datacreator import StabilityExp
+    from utils.datacreator import StabilityExp
 
     NUM_SAMPLES = 16384
-    DATA_ERROR_W = 0.2
-    MODEL_ERROR_W = 0.5
-    POLY_POW = 4
-    DATA_RANGE = (1, 2)
-    ATTACKER_WIDTHS = [i for i in range(1, 20)]
-    OUTFILE = "../results/Stability.json"
+    DATA_ERROR_W = 0.4
+    MODEL_ERROR_W = 0.02
+    POLY_POW = 2
+    DATA_RANGE = (1, 5)
+    ATTACKER_WIDTHS = [i for i in range(25, 501, 25)]
+    ATTACKER_DEPTHS = [i for i in range(0, 10)]
+    OUTFILE = "results/Stability.json"
 
     P, D, M = StabilityExp(
         NUM_SAMPLES, DATA_ERROR_W, MODEL_ERROR_W, POLY_POW, DATA_RANGE
@@ -274,35 +278,48 @@ if __name__ == "__main__":
     model_mse = RMSE(M, D)
     leakages = {}
 
-    # Parameter Initialization
-    for num, width in enumerate(ATTACKER_WIDTHS, 1):
-        print(f"Working on Iteration {num}", flush=True)
-        # Attacker Model Initialization
-        attackerModel = simpleDenseModel(
-            1, width, 1, numFirst=1, activations=["relu", "relu", "relu"]
-        )
+    num = 0
+    for depth in ATTACKER_DEPTHS:
+        for width in ATTACKER_WIDTHS:
+            print(f"Working on Iteration {num}", flush=True)
+            # Attacker Model Initialization
+            attackerModel = simpleDenseModel(
+                1, width, 1, numFirst=1, activations=["relu", "relu", "relu"]
+            )
 
-        # Parameter Initialization
-        leakage = Leakage(
-            {"attacker_D": attackerModel, "sameModel": True},
-            {
-                "learning_rate": 0.05,
-                "loss_function": "mse",
-                "epochs": 100,
-                "batch_size": 64,
-            },
-            model_mse,
-            "noise",
-            "mse",
-            threshold=False,
-        )
+            num_params = attackerModel.count_params()
 
-        leak = leakage.getAmortizedLeakage(P, D, M)
-        print(f"leakage for case {num+1} ({width=}): {leak}")
-        print("______________________________________")
-        print("______________________________________")
-        leakages[num] = {"width": width, "data": leak}
+            # Parameter Initialization
+            leakage = Leakage(
+                {"attacker_D": attackerModel, "sameModel": True},
+                {
+                    "learning_rate": 0.005,
+                    "loss_function": "mse",
+                    "epochs": 200,
+                    "batch_size": 256,
+                },
+                model_mse,
+                "noise",
+                "mse",
+                threshold=False,
+            )
+
+            leak = leakage.getAmortizedLeakage(P, D, M)
+            num += 1
+            print(
+                f"leakage for case {num} ({width=}) ({depth=}) ({num_params=}): {leak}"
+            )
+            print("______________________________________")
+            print("______________________________________")
+            leakages[num] = {
+                "width": width,
+                "depth": depth,
+                "num_params": num_params,
+                "data": leak,
+            }
 
     print("Saving results!")
+    save_dir = "/".join(OUTFILE.split("/")[:-1])
+    os.makedirs(save_dir, exist_ok=True)
     with open(OUTFILE, "w") as f:
         json.dump(leakages, f)
