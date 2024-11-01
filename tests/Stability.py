@@ -109,7 +109,8 @@ class Leakage:
         lambda_m = self.calcLambda(self.attacker_M, pred, feat)
         print(f"{lambda_d=},\n{lambda_m=}")
         leakage = lambda_m - lambda_d
-        return leakage
+        leakage_norm = leakage / (lambda_m + lambda_d)
+        return leakage, leakage_norm
 
     def train(
         self,
@@ -234,14 +235,34 @@ class Leakage:
         method: str = "mean",
     ) -> tuple[torch.tensor, torch.tensor]:
         vals = torch.zeros(num_trials)
+        norm_vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
-            vals[i] = self.calcLeak(feat, data, pred)
+            vals[i], norm_vals[i] = self.calcLeak(feat, data, pred)
             print(f"Trial {i} val: {vals[i]}")
+            print(f"Trial {i} norm_val: {norm_vals[i]}")
         if method == "mean":
-            return torch.mean(vals), torch.std(vals)
+            return {
+                "vals": {
+                    "mean": torch.mean(vals).item(),
+                    "std": torch.std(vals).item(),
+                },
+                "norm_vals": {
+                    "mean": torch.mean(norm_vals).item(),
+                    "std": torch.std(norm_vals).item(),
+                },
+            }
         elif method == "median":
-            return torch.median(vals), torch.std(vals)
+            return {
+                "vals": {
+                    "median": torch.median(vals).item(),
+                    "std": torch.std(vals).item(),
+                },
+                "norm_vals": {
+                    "median": torch.median(norm_vals).item(),
+                    "std": torch.std(norm_vals).item(),
+                },
+            }
         else:
             raise ValueError("Invalid Method given for Amortization.")
 
