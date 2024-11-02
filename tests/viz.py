@@ -1,11 +1,12 @@
 # Importing Libraries
 import numpy as np
 import matplotlib.pyplot as plt
-
+from typing import Callable
 
 # Constants
 array_type = np.typing.NDArray
-
+MIN_ALPHA = -0.25
+MAX_ALPHA = 0.25
 
 # Helper Functions
 def calc_y_at(a_val: int, t_val: int, P_at: array_type) -> bool:
@@ -61,9 +62,30 @@ def calc_MDBA(
     return {"AtoT": DBA_at, "TtoA": DBA_ta}
 
 
+def generateP_mat(alpha : float) -> array_type:
+    return np.array([[0.25 + alpha, 0.25],[0.25, 0.25 - alpha]])
+
+def createHeatMap(calc_func: Callable, increments : float = 0.01) -> array_type:
+    num = int((MAX_ALPHA - MIN_ALPHA)//increments)
+    vals = np.zeros((num+1,num+1))
+    for num_d in range(0, num + 1):
+        alpha_d = MIN_ALPHA + (increments * num_d)
+        P_at = generateP_mat(alpha_d)
+        for num_m in range(0, num + 1):
+            alpha_m = MIN_ALPHA + (increments * num_m)
+            P_at_pred = generateP_mat(alpha_m)
+            curr_val = calc_func(P_at, P_at_pred, P_at_pred)
+            vals[num_d,num_m] = curr_val["AtoT"]
+    return vals
+                
+
 if __name__ == "__main__":
-    P_at = np.array([[0.001, 0.001], [0.0, 0.998]])
-    P_atpred = np.array([[0.001, 0.001], [0.0, 0.998]])
-    P_apredt = np.array([[0.25, 0.3], [0.2, 0.25]])
-    print(calc_DBA(P_at, P_atpred, P_apredt))
-    print(calc_MDBA(P_at, P_atpred, P_apredt))
+    DBA_map = createHeatMap(calc_DBA)
+    plt.title("DBA Map")
+    plt.imshow(DBA_map,cmap="jet")
+    plt.show()
+
+    MDBA_map = createHeatMap(calc_MDBA)
+    plt.title("MDBA Map")
+    plt.imshow(MDBA_map,cmap="jet")
+    plt.show()
