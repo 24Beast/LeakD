@@ -7,8 +7,29 @@ import torch.optim as optim
 from typing import Callable, Union, Literal
 
 
+# Defining Constants
+array_type = np.typing.NDArray
+MODEL_ACC = 1.0
+NUM_SAMPLES = 1024
+
+
+# Helper Function
+def P_mat_to_data(
+    P_at: array_type, num_points: int = 1024
+) -> tuple[torch.Tensor, torch.Tensor]:
+    A = torch.zeros((num_points, 1), dtype=torch.float)
+    D = torch.zeros((num_points, 1), dtype=torch.float)
+    num_zeros = int(num_points * np.sum(P_at[0]))
+    A[num_zeros:] = 1
+    num_00 = int(num_points * P_at[0, 0])
+    num_10 = int(num_points * P_at[1, 0])
+    D[num_00:num_zeros] = 1
+    D[num_zeros + num_10 :] = 1
+    return A, D
+
+
 # Main class
-class DLA:
+class DLA_viz:
     def __init__(
         self,
         model_params: dict,
@@ -70,7 +91,8 @@ class DLA:
 
     def calcLeak(
         self,
-        feat: torch.tensor,
+        feat_d: torch.tensor,
+        feat_m: torch.tensor,
         data: torch.tensor,
         pred: torch.tensor,
         mode: Literal["AtoT", "TtoA"],
@@ -94,10 +116,12 @@ class DLA:
 
         """
         pert_data = self.permuteData(data)
-        self.train(pert_data, feat, "D_" + mode)
-        lambda_d = self.calcLambda(getattr(self, "attacker_D_" + mode), pert_data, feat)
-        self.train(pred, feat, "M_" + mode)
-        lambda_m = self.calcLambda(getattr(self, "attacker_M_" + mode), pred, feat)
+        self.train(pert_data, feat_d, "D_" + mode)
+        lambda_d = self.calcLambda(
+            getattr(self, "attacker_D_" + mode), pert_data, feat_d
+        )
+        self.train(pred, feat_m, "M_" + mode)
+        lambda_m = self.calcLambda(getattr(self, "attacker_M_" + mode), pred, feat_m)
         print(f"{lambda_d=},\n{lambda_m=}")
         leakage = (lambda_m - lambda_d) / (lambda_m + lambda_d)
         return leakage
@@ -205,7 +229,8 @@ class DLA:
 
     def getAmortizedLeakage(
         self,
-        feat: torch.tensor,
+        feat_d: torch.tensor,
+        feat_m: torch.tensor,
         data: torch.tensor,
         pred: torch.tensor,
         mode: Literal["AtoT", "TtoA"],
@@ -215,7 +240,7 @@ class DLA:
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
-            vals[i] = self.calcLeak(feat, data, pred, mode)
+            vals[i] = self.calcLeak(feat_d, feat_m, data, pred, mode)
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return torch.mean(vals), torch.std(vals)
@@ -224,37 +249,12 @@ class DLA:
         else:
             raise ValueError("Invalid Method given for Amortization.")
 
-    def calcBidirectional(
-        self,
-        A: torch.tensor,
-        T: torch.tensor,
-        A_pred: torch.tensor,
-        T_pred: torch.tensor,
-        num_trials: int = 10,
-        method: str = "mean",
-    ) -> tuple[tuple[torch.tensor, torch.tensor], tuple[torch.tensor, torch.tensor]]:
-        AtoT_vals = self.getAmortizedLeakage(A, T, T_pred, num_trials, method)
-        TtoA_vals = self.getAmortizedLeakage(T, A, A_pred, num_trials, method)
-        return (AtoT_vals, TtoA_vals)
 
-
-if __name__ == "__main__":
-    # Test case
-    from attackerModels.ANN import simpleDenseModel
-
-    # Data Initialization
-    from utils.datacreator import dataCreator
-
-    P, D, D2, M1, M2 = dataCreator(16384, 0.2, False, 0.05)
-    P = torch.tensor(P, dtype=torch.float).reshape(-1, 1)
-    D = torch.tensor(D, dtype=torch.float).reshape(-1, 1)
-    D2 = torch.tensor(D2, dtype=torch.float).reshape(-1, 1)
-    M1 = torch.tensor(M1, dtype=torch.float).reshape(-1, 1)
-    M2 = torch.tensor(M2, dtype=torch.float).reshape(-1, 1)
-
-    # Calculating Params
-    model_1_acc = torch.sum(D == M1) / D.shape[0]
-    model_2_acc = torch.sum(D == M2) / D.shape[0]
+def calc_DPA(
+    P_at: array_type, P_atpred: array_type, P_apredt: array_type
+) -> dict[str, float]:
+    A_d, D = P_mat_to_data(P_at, NUM_SAMPLES)
+    A_m, M = P_mat_to_data(P_atpred, NUM_SAMPLES)
 
     # Attacker Model Initialization
     attackerModel = simpleDenseModel(
@@ -262,7 +262,7 @@ if __name__ == "__main__":
     )
 
     # Parameter Initialization
-    leakage_1 = DLA(
+    leakage = DLA_viz(
         {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
         {
             "learning_rate": 0.05,
@@ -270,37 +270,34 @@ if __name__ == "__main__":
             "epochs": 100,
             "batch_size": 64,
         },
-        model_1_acc,
-        "accuracy",
+        MODEL_ACC,
+        "bce",
         threshold=True,
     )
 
-    leakage_2 = DLA(
-        {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
-        {
-            "learning_rate": 0.05,
-            "loss_function": "bce",
-            "epochs": 100,
-            "batch_size": 64,
-        },
-        model_2_acc,
-        "accuracy",
-        threshold=True,
-    )
+    val = leakage.getAmortizedLeakage(A_d, A_m, D, M, "AtoT")
 
-    leak_1 = leakage_1.getAmortizedLeakage(P, D, M1, "AtoT")
-    print(f"leakage for case 1: {leak_1}")
-    print("______________________________________")
-    print("______________________________________")
-    leak_2 = leakage_2.getAmortizedLeakage(P, D, M2, "AtoT")
-    print(f"leakage for case 2: {leak_2}")
-    print("______________________________________")
-    print("______________________________________")
-    leak_3 = leakage_2.getAmortizedLeakage(P, D2, M1, "AtoT")
-    print(f"leakage for case 3: {leak_3}")
-    print("______________________________________")
-    print("______________________________________")
-    leak_4 = leakage_2.getAmortizedLeakage(P, D2, M2, "AtoT")
-    print(f"leakage for case 4: {leak_4}")
-    print("______________________________________")
-    print("______________________________________")
+    return {"AtoT": val[0]}
+
+
+if __name__ == "__main__":
+    # Test case
+    import os
+    import sys
+
+    sys.path.append("../")
+
+    from attackerModels.ANN import simpleDenseModel
+    from viz import createHeatMap, plotHeatMap
+
+    # Parameter Initialization
+    INCR = 0.01
+    OUTPUT_DIR = "./results/"
+
+    if not (os.path.exists(OUTPUT_DIR)):
+        os.makedirs(OUTPUT_DIR)
+
+    DPA_map = createHeatMap(calc_DPA, increments=INCR)
+    plotHeatMap(
+        DPA_map, "DPA", r"$\alpha_d$", r"$\alpha_m$", "jet", None, None, OUTPUT_DIR
+    )
