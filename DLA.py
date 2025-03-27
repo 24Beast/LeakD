@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import torch.optim as optim
 from typing import Callable, Union, Literal
+from sklearn.model_selection import train_test_split
 
 
 # Main class
@@ -70,9 +71,12 @@ class DLA:
 
     def calcLeak(
         self,
-        feat: torch.tensor,
-        data: torch.tensor,
-        pred: torch.tensor,
+        feat_train: torch.tensor,
+        data_train: torch.tensor,
+        pred_train: torch.tensor,
+        feat_test: torch.tensor,
+        data_test: torch.tensor,
+        pred_test: torch.tensor,
         mode: Literal["AtoT", "TtoA"],
     ) -> torch.tensor:
         """
@@ -93,11 +97,16 @@ class DLA:
             Evaluated Leakage.
 
         """
-        pert_data = self.permuteData(data)
-        self.train(pert_data, feat, "D_" + mode)
-        lambda_d = self.calcLambda(getattr(self, "attacker_D_" + mode), pert_data, feat)
-        self.train(pred, feat, "M_" + mode)
-        lambda_m = self.calcLambda(getattr(self, "attacker_M_" + mode), pred, feat)
+        pert_data_train = self.permuteData(data_train)
+        pert_data_test = self.permuteData(data_test)
+        self.train(pert_data_train, feat_train, "D_" + mode)
+        lambda_d = self.calcLambda(
+            getattr(self, "attacker_D_" + mode), pert_data_test, feat_test
+        )
+        self.train(pred_train, feat_train, "M_" + mode)
+        lambda_m = self.calcLambda(
+            getattr(self, "attacker_M_" + mode), pred_test, feat_test
+        )
         print(f"{lambda_d=},\n{lambda_m=}")
         leakage = (lambda_m - lambda_d) / (lambda_m + lambda_d)
         return leakage
@@ -205,17 +214,32 @@ class DLA:
 
     def getAmortizedLeakage(
         self,
-        feat: torch.tensor,
-        data: torch.tensor,
-        pred: torch.tensor,
+        feat_train: torch.tensor,
+        data_train: torch.tensor,
+        pred_train: torch.tensor,
         mode: Literal["AtoT", "TtoA"],
         num_trials: int = 10,
         method: str = "mean",
+        feat_test: torch.tensor = None,
+        data_test: torch.tensor = None,
+        pred_test: torch.tensor = None,
     ) -> tuple[torch.tensor, torch.tensor]:
+        if feat_test == None:
+            feat_train, feat_test, data_train, data_test, pred_train, pred_test = (
+                train_test_split(feat_train, data_train, pred_train, test_size=0.2)
+            )
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
-            vals[i] = self.calcLeak(feat, data, pred, mode)
+            vals[i] = self.calcLeak(
+                feat_train,
+                data_train,
+                pred_train,
+                feat_test,
+                data_test,
+                pred_test,
+                mode,
+            )
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return torch.mean(vals), torch.std(vals)
