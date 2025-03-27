@@ -16,19 +16,17 @@ BASE_DIR = "C:/Users/btokas/Projects/Datasets/imSitu/"
 
 # ARG_PARSER
 parser = argparse.ArgumentParser()
-parser.add_argument("--balanced", default=True, type=bool)
+parser.add_argument("--balanced", default=1, type=int)
 parser.add_argument("--ratio", default=1, type=int)  # Set 1 for balanced
-parser.add_argument("--blackout_box", default=False, type=bool)
-parser.add_argument(
-    "--gender_balanced", default=True, type=bool
-)  # Set True for balanced
+parser.add_argument("--gender_balanced", default=1, type=int)  # Set 1 for balanced
+parser.add_argument("--blackout_box", default=False)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--lr", default=1e-5, type=float)
 parser.add_argument("--img_dir", default=BASE_DIR + "of500_images_resized/")
 parser.add_argument("--ann_dir", default=BASE_DIR)
 args = parser.parse_args()
-
+print(args)
 
 # Data definitions
 num_classes = 152
@@ -74,7 +72,7 @@ optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
 # Training and validation loop
 best_loss = float("inf")
-best_model_dir = f"../models/vit_ratio_{args.ratio}/"
+best_model_dir = f"../models/vit_ratio_{args.ratio}_gender_bal_{args.gender_balanced}/"
 best_model_path = best_model_dir + "best_vit_model.pth"
 if not (os.path.isdir(best_model_dir)):
     os.makedirs(best_model_dir)
