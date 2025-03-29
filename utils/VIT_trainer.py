@@ -127,13 +127,13 @@ def save_predictions(dataloader, dataset, filename):
             labels = torch.hstack([labels, gender])
             images = images.to(DEVICE)
             outputs = model(images)
-            _, preds = torch.max(outputs, 1)
-            predictions.extend(zip(dataset.samples, preds.cpu().numpy()))
+            probs = torch.sigmoid(outputs).cpu().numpy()
+            predictions.extend(zip(labels, probs))
     df = pd.DataFrame(predictions, columns=["ImagePath", "Prediction"])
     df.to_csv(filename, index=False)
     print(f"Predictions saved to {filename}")
 
 
 # Save predictions
-save_predictions(train_loader, train_dataset, "train_predictions.csv")
-save_predictions(test_loader, test_dataset, "test_predictions.csv")
+save_predictions(train_loader, train_dataset, best_model_dir + "train_predictions.csv")
+save_predictions(test_loader, test_dataset, best_model_dir + "test_predictions.csv")

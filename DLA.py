@@ -6,7 +6,7 @@ import numpy as np
 import torch.optim as optim
 from typing import Callable, Union, Literal
 from sklearn.model_selection import train_test_split
-
+from utils.losses import ModifiedBCELoss
 
 # Main class
 class DLA:
@@ -14,7 +14,7 @@ class DLA:
         self,
         model_params: dict,
         train_params: dict,
-        model_acc: float,
+        model_acc: Union[float, dict],
         eval_metric: Union[Callable, str] = "mse",
         threshold=True,
     ) -> None:
@@ -36,8 +36,9 @@ class DLA:
                     },
                 "TtoA": {same format as AtoT}
             }
-        model_acc : float
+        model_acc : Union[float, dict] 
             The accuracy of the model being tested for quality equalization.
+            For bidirectional case, send dict of the form {'AtoT': acc_AtoT, 'TtoA': acc_TtoA}
         eval_metric : Union[Callable,str], optional
             Either a Callable of the form eval_metric(y_pred, y)
             or a string to utilize exiting methods.
@@ -64,7 +65,7 @@ class DLA:
         self.eval_functions = {
             "accuracy": lambda y_pred, y: (y_pred == y).float().mean(),
             "mse": lambda y_pred, y: ((y_pred - y) ** 2).float().mean(),
-            "bce": torch.nn.BCELoss(),
+            "bce": ModifiedBCELoss,
         }
         self.initEvalMetric(eval_metric)
         self.defineModel()
@@ -97,15 +98,15 @@ class DLA:
             Evaluated Leakage.
 
         """
-        pert_data_train = self.permuteData(data_train)
-        pert_data_test = self.permuteData(data_test)
-        self.train(pert_data_train, feat_train, "D_" + mode)
+        pert_data_train = self.permuteData(data_train, mode)
+        pert_data_test = self.permuteData(data_test, mode)
+        self.train(feat_train, pert_data_train, "D_" + mode)
         lambda_d = self.calcLambda(
-            getattr(self, "attacker_D_" + mode), pert_data_test, feat_test
+            getattr(self, "attacker_D_" + mode), feat_test, pert_data_test
         )
-        self.train(pred_train, feat_train, "M_" + mode)
+        self.train(feat_train, pred_train, "M_" + mode)
         lambda_m = self.calcLambda(
-            getattr(self, "attacker_M_" + mode), pred_test, feat_test
+            getattr(self, "attacker_M_" + mode), feat_test, pred_test
         )
         print(f"{lambda_d=},\n{lambda_m=}")
         leakage = (lambda_m - lambda_d) / (lambda_m + lambda_d)
@@ -164,6 +165,7 @@ class DLA:
     ) -> torch.tensor:
         y_pred = model(x)
         if self.threshold:
+            print(f"{y_pred.min()=},{y_pred.max()=}")
             y_pred = y_pred > 0.5
         return self.eval_metric(y_pred, y)
 
@@ -177,7 +179,7 @@ class DLA:
         self.attacker_D_TtoA = self.model_params["attacker_TtoA"]
         self.attacker_M_TtoA = copy.deepcopy(self.attacker_D_TtoA)
 
-    def permuteData(self, data: torch.tensor) -> torch.tensor:
+    def permuteData(self, data: torch.tensor, mode: str = "AtoT") -> torch.tensor:
         """
         Currently assumes ground truth data to be binary values in a pytorch tensor.
         Should work for any NxM type array.
@@ -192,11 +194,15 @@ class DLA:
         new_data : torch.tensor
             Randomly pertubed data for quality equalization.
         """
-        if self.model_acc > 1:
-            self.model_acc = self.model_acc / 100
+        if(type(self.model_acc) in [float, int, torch.Tensor]):           
+            if self.model_acc > 1:
+                self.model_acc = self.model_acc / 100
+            curr_model_acc = self.model_acc
+        else:
+            curr_model_acc = self.model_acc[mode]
         num_observations = data.shape[0]
         rand_vect = torch.zeros((num_observations, 1))
-        rand_vect[: int(self.model_acc * num_observations)] = 1
+        rand_vect[: int(curr_model_acc * num_observations)] = 1
         rand_vect = rand_vect[torch.randperm(num_observations)]
         new_data = rand_vect * (data) + (1 - rand_vect) * (1 - data)
         return new_data
