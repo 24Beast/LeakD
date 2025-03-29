@@ -8,6 +8,7 @@ from typing import Callable, Union, Literal
 from sklearn.model_selection import train_test_split
 from utils.losses import ModifiedBCELoss
 
+
 # Main class
 class DLA:
     def __init__(
@@ -36,7 +37,7 @@ class DLA:
                     },
                 "TtoA": {same format as AtoT}
             }
-        model_acc : Union[float, dict] 
+        model_acc : Union[float, dict]
             The accuracy of the model being tested for quality equalization.
             For bidirectional case, send dict of the form {'AtoT': acc_AtoT, 'TtoA': acc_TtoA}
         eval_metric : Union[Callable,str], optional
@@ -194,7 +195,7 @@ class DLA:
         new_data : torch.tensor
             Randomly pertubed data for quality equalization.
         """
-        if(type(self.model_acc) in [float, int, torch.Tensor]):           
+        if type(self.model_acc) in [float, int, torch.Tensor]:
             if self.model_acc > 1:
                 self.model_acc = self.model_acc / 100
             curr_model_acc = self.model_acc

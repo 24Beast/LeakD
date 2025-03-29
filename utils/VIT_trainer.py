@@ -29,7 +29,7 @@ args = parser.parse_args()
 print(args)
 
 # Data definitions
-num_classes = 152
+num_classes = 207
 
 # Data transformations
 # https://pytorch.org/vision/main/models/generated/torchvision.models.vit_b_16.html#torchvision.models.ViT_B_16_Weights
@@ -72,7 +72,7 @@ optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
 # Training and validation loop
 best_loss = float("inf")
-best_model_dir = f"../models/vit_ratio_{args.ratio}_gender_bal_{args.gender_balanced}/"
+best_model_dir = f"../models/vit_ratio_{args.ratio}_genderbal_{args.gender_balanced}_bal_{args.balanced}/"
 best_model_path = best_model_dir + "best_vit_model.pth"
 if not (os.path.isdir(best_model_dir)):
     os.makedirs(best_model_dir)
@@ -118,8 +118,10 @@ model.load_state_dict(torch.load(best_model_path))
 model.eval()
 
 
-def save_predictions(dataloader, dataset, filename):
-    predictions = []
+def save_predictions(dataloader, filename):
+    gts = torch.zeros((len(dataloader.dataset), num_classes))
+    preds = torch.zeros((len(dataloader.dataset), num_classes))
+    curr = 0
     with torch.no_grad():
         for images, labels, gender in tqdm(
             dataloader, desc=f"Saving Predictions {filename}"
@@ -127,13 +129,17 @@ def save_predictions(dataloader, dataset, filename):
             labels = torch.hstack([labels, gender])
             images = images.to(DEVICE)
             outputs = model(images)
-            probs = torch.sigmoid(outputs).cpu().numpy()
-            predictions.extend(zip(labels, probs))
-    df = pd.DataFrame(predictions, columns=["ImagePath", "Prediction"])
-    df.to_csv(filename, index=False)
+            probs = torch.sigmoid(outputs).cpu()
+            d = len(labels)
+            gts[curr : curr + d] = labels
+            preds[curr : curr + d] = probs
+            curr = curr + d
+    torch.save(gts, filename + "_gts.pth")
+    torch.save(preds, filename + "_preds.pth")
     print(f"Predictions saved to {filename}")
+    return gts, preds
 
 
 # Save predictions
-save_predictions(train_loader, train_dataset, best_model_dir + "train_predictions.csv")
-save_predictions(test_loader, test_dataset, best_model_dir + "test_predictions.csv")
+gt_train, pred_train = save_predictions(train_loader, best_model_dir + "train")
+gt_test, pred_test = save_predictions(test_loader, best_model_dir + "test")

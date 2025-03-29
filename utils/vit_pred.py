@@ -17,9 +17,9 @@ BASE_DIR = "C:/Users/btokas/Projects/Datasets/imSitu/"
 
 # ARG_PARSER
 parser = argparse.ArgumentParser()
-parser.add_argument("--balanced", default=0, type=int)
-parser.add_argument("--ratio", default=3, type=int)  # Set 1 for balanced
-parser.add_argument("--gender_balanced", default=0, type=int)  # Set 1 for balanced
+parser.add_argument("--balanced", default=1, type=int)
+parser.add_argument("--ratio", default=1, type=int)  # Set 1 for balanced
+parser.add_argument("--gender_balanced", default=1, type=int)  # Set 1 for balanced
 parser.add_argument("--blackout_box", default=False)
 parser.add_argument("--img_dir", default=BASE_DIR + "of500_images_resized/")
 parser.add_argument("--ann_dir", default=BASE_DIR)
@@ -28,7 +28,9 @@ args = parser.parse_args()
 print(args)
 
 # Load Pretrained ViT and modify
-model = models.vit_b_16(pretrained=False)  # Set pretrained=False to avoid re-downloading weights
+model = models.vit_b_16(
+    pretrained=False
+)  # Set pretrained=False to avoid re-downloading weights
 model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
 model = model.to(DEVICE)
 
@@ -87,14 +89,15 @@ def save_predictions(dataloader, filename):
             outputs = model(images)
             probs = torch.sigmoid(outputs).cpu()
             d = len(labels)
-            gts[curr:curr+d] = labels
-            preds[curr:curr+d] = probs
-            curr = curr+d
+            gts[curr : curr + d] = labels
+            preds[curr : curr + d] = probs
+            curr = curr + d
     torch.save(gts, filename + "_gts.pth")
     torch.save(preds, filename + "_preds.pth")
     print(f"Predictions saved to {filename}")
+    return gts, preds
 
 
 # Save predictions
-save_predictions(train_loader, out_dir + "train")
-save_predictions(test_loader,  out_dir + "test")
+gt_train, pred_train = save_predictions(train_loader, out_dir + "train")
+gt_test, pred_test = save_predictions(test_loader, out_dir + "test")
