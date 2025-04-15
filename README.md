@@ -1,2 +1,2 @@
-# LeakD
-Repository for Directional Leakage
+# DPA
+Repository for Directional Predictability Amplification
