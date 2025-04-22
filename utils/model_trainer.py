@@ -118,6 +118,7 @@ for epoch in range(args.num_epochs):
             labels = torch.hstack([labels, gender])
             images, labels = images.to(DEVICE), labels.to(DEVICE)
             outputs = model(images)
+            loss = criterion(outputs, labels)
             val_loss += loss.item()
 
     val_loss /= len(val_loader)
