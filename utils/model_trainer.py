@@ -35,7 +35,7 @@ num_classes = 207
 # Data transformations
 # https://pytorch.org/vision/main/models/generated/torchvision.models.vit_b_16.html#torchvision.models.ViT_B_16_Weights
 model_name = args.model
-if model_name == "swin":
+if (model_name == "swin") or (model_name == "mobile_v3"):
     resize = transforms.Resize(232, interpolation=transforms.InterpolationMode.BICUBIC)
 else:
     resize = transforms.Resize(256, interpolation=transforms.InterpolationMode.BILINEAR)
@@ -80,6 +80,11 @@ elif model_name == "resnet18":
 elif model_name == "vgg16":
     model = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
     model.classifier[6] = nn.Linear(model.classifier[6].in_features, num_classes)
+elif model_name == "mobile_v3":
+    model = models.mobilenet_v3_large(
+        weights=models.MobileNet_V3_Large_Weights.IMAGENET1K_V1
+    )
+    model.classifier[3] = nn.Linear(model.classifier[3].in_features, num_classes)
 
 model = model.to(DEVICE)
 
@@ -91,7 +96,7 @@ optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 # Training and validation loop
 best_loss = float("inf")
 best_model_dir = f"../models/{model_name}_ratio_{args.ratio}_genderbal_{args.gender_balanced}_bal_{args.balanced}/"
-best_model_path = best_model_dir + "best_{model_name}_model.pth"
+best_model_path = best_model_dir + f"best_{model_name}_model.pth"
 if not (os.path.isdir(best_model_dir)):
     os.makedirs(best_model_dir)
 
