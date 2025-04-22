@@ -10,14 +10,15 @@ from utils.losses import ModifiedBCELoss
 
 
 # Main class
-class DLA:
+class DPA:
     def __init__(
         self,
         model_params: dict,
         train_params: dict,
         model_acc: Union[float, dict],
-        eval_metric: Union[Callable, str] = "mse",
+        eval_metric: Union[Callable, str] = "bce",
         threshold=True,
+        normalized=True,
     ) -> None:
         """
         Parameters
@@ -54,9 +55,9 @@ class DLA:
         """
         self.model_params = model_params
         self.train_params = train_params
-        self.model_attacker_trained = False
         self.threshold = threshold
         self.model_acc = model_acc
+        self.normalized = normalized
 
         self.loss_functions = {
             "mse": torch.nn.MSELoss(),
@@ -110,7 +111,10 @@ class DLA:
             getattr(self, "attacker_M_" + mode), feat_test, pred_test
         )
         print(f"{lambda_d=},\n{lambda_m=}")
-        leakage = (lambda_m - lambda_d) / (lambda_m + lambda_d)
+        if self.normalized:
+            leakage = (lambda_m - lambda_d) / (lambda_m + lambda_d)
+        else:
+            leakage = lambda_m - lambda_d
         return leakage
 
     def train(
@@ -293,7 +297,7 @@ if __name__ == "__main__":
     )
 
     # Parameter Initialization
-    leakage_1 = DLA(
+    leakage_1 = DPA(
         {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
         {
             "learning_rate": 0.05,
@@ -306,7 +310,7 @@ if __name__ == "__main__":
         threshold=True,
     )
 
-    leakage_2 = DLA(
+    leakage_2 = DPA(
         {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
         {
             "learning_rate": 0.05,

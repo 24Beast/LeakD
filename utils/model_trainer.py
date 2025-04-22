@@ -25,6 +25,7 @@ parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--lr", default=1e-5, type=float)
 parser.add_argument("--img_dir", default=BASE_DIR + "of500_images_resized/")
 parser.add_argument("--ann_dir", default=BASE_DIR)
+parser.add_argument("--model", default="vit")
 args = parser.parse_args()
 print(args)
 
@@ -33,11 +34,16 @@ num_classes = 207
 
 # Data transformations
 # https://pytorch.org/vision/main/models/generated/torchvision.models.vit_b_16.html#torchvision.models.ViT_B_16_Weights
+model_name = args.model
+if model_name == "swin":
+    resize = transforms.Resize(232, interpolation=transforms.InterpolationMode.BICUBIC)
+else:
+    resize = transforms.Resize(256, interpolation=transforms.InterpolationMode.BILINEAR)
 rescale = lambda x: x / 255
 normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-
 transformation = transforms.Compose(
     [
+        resize,
         transforms.CenterCrop(224),
         transforms.functional.pil_to_tensor,
         rescale,
@@ -61,10 +67,22 @@ train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=Tru
 val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-# Load Pretrained ViT and modify
-model = models.vit_b_16(pretrained=True)
-model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+# Load Pretrained model and modify
+if model_name == "vit":
+    model = models.vit_b_16(pretrained=True)
+    model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+elif model_name == "swin":
+    model = models.swin_t(pretrained=True)
+    model.heads.head = nn.Linear(model.head.in_features, num_classes)
+elif model_name == "resnet18":
+    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+elif model_name == "vgg16":
+    model = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
+    model.classifier[6] = nn.Linear(model.classifier[6].in_features, num_classes)
+
 model = model.to(DEVICE)
+
 
 # Loss and optimizer
 criterion = nn.BCEWithLogitsLoss()
@@ -72,8 +90,8 @@ optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
 # Training and validation loop
 best_loss = float("inf")
-best_model_dir = f"../models/vit_ratio_{args.ratio}_genderbal_{args.gender_balanced}_bal_{args.balanced}/"
-best_model_path = best_model_dir + "best_vit_model.pth"
+best_model_dir = f"../models/{model_name}_ratio_{args.ratio}_genderbal_{args.gender_balanced}_bal_{args.balanced}/"
+best_model_path = best_model_dir + "best_{model_name}_model.pth"
 if not (os.path.isdir(best_model_dir)):
     os.makedirs(best_model_dir)
 
