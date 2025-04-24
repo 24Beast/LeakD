@@ -8,7 +8,7 @@ from tests.DBA import DirectionalBiasAmplification
 
 
 # Defining Constants
-BASE_DIR = "./models/vit_ratio_1_genderbal_1_bal_1/"
+BASE_DIR = "./models/mobile_v3_ratio_1_genderbal_1_bal_1/"
 
 
 # Helper Function
@@ -52,7 +52,6 @@ dla_obj = DPA(
     "bce",
     threshold=False,
 )
-"""
 leak_AtoT = dla_obj.getAmortizedLeakage(
     A_train, T_train, T_pred_train, "AtoT"
 )  # , feat_test = A_test, data_test = T_test, pred_test = T_pred_test)
@@ -66,7 +65,7 @@ leak_TtoA = dla_obj.getAmortizedLeakage(
 print(f"leakage for TtoA: {leak_TtoA}")
 print("______________________________________")
 print("______________________________________")
-"""
+
 dba_metric = DirectionalBiasAmplification()
 
 dba_vals_AtoT = dba_metric._compute(T_pred_train, T_train, A_train)

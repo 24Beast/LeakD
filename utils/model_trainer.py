@@ -37,6 +37,10 @@ num_classes = 207
 model_name = args.model
 if (model_name == "swin") or (model_name == "mobile_v3"):
     resize = transforms.Resize(232, interpolation=transforms.InterpolationMode.BICUBIC)
+elif model_name == "swin_s":
+    resize = transforms.Resize(246, interpolation=transforms.InterpolationMode.BICUBIC)
+elif model_name == "maxvit":
+    resize = transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC)
 else:
     resize = transforms.Resize(256, interpolation=transforms.InterpolationMode.BILINEAR)
 rescale = lambda x: x / 255
@@ -73,7 +77,7 @@ if model_name == "vit":
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
 elif model_name == "swin":
     model = models.swin_t(pretrained=True)
-    model.heads.head = nn.Linear(model.head.in_features, num_classes)
+    model.head = nn.Linear(model.head.in_features, num_classes)
 elif model_name == "resnet18":
     model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
@@ -85,6 +89,34 @@ elif model_name == "mobile_v3":
         weights=models.MobileNet_V3_Large_Weights.IMAGENET1K_V1
     )
     model.classifier[3] = nn.Linear(model.classifier[3].in_features, num_classes)
+elif model_name == "mobile_v2":
+    model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
+    model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+elif model_name == "squeezenet_1_1":
+    model = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.IMAGENET1K_V1)
+    model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
+elif model_name == "wide_resnet50":
+    model = models.wide_resnet50_2(weights=models.Wide_ResNet50_2_Weights.IMAGENET1K_V1)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+elif model_name == "wide_resnet101":
+    model = models.wide_resnet101_2(
+        weights=models.Wide_ResNet101_2_Weights.IMAGENET1K_V1
+    )
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+elif model_name == "vit_b_32":
+    model = models.vit_b_32(weights=models.ViT_B_32_Weights.IMAGENET1K_V1)
+    model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+elif model_name == "swin_s":
+    model = models.swin_s(pretrained=True)
+    model.head = nn.Linear(model.head.in_features, num_classes)
+elif model_name == "squeezenet_1_0":
+    model = models.squeezenet1_0(weights=models.SqueezeNet1_0_Weights.IMAGENET1K_V1)
+    model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
+elif model_name == "maxvit":
+    model = models.maxvit_t(weights=models.MaxVit_T_Weights.IMAGENET1K_V1)
+    model.classifier = nn.Sequential(
+        nn.Linear(model.classifier.in_features, num_classes)
+    )
 
 model = model.to(DEVICE)
 
