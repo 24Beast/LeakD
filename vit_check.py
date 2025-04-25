@@ -22,6 +22,31 @@ def loadData(base_dir: str = BASE_DIR, split: str = "train"):
     return A, T, A_pred, T_pred
 
 
+def calcCorr(A: torch.tensor, T: torch.tensor) -> torch.tensor:
+    """
+    Returns correlation coefficient for A[:,0] with all values of T.
+
+    Typically has some rounding errors of the order < 1e-8. Check https://pytorch.org/docs/stable/generated/torch.corrcoef.html
+
+    Parameters
+    ----------
+    A : torch.tensor
+        of the shape (Num observations, num_A).
+    T : torch.tensor
+        of the shape (Num observations, num_T).
+
+    Returns
+    -------
+    corr_vals : torch.tensor
+        Correlation coefficients of T with A[:,0]. torch.tensor of the shape (num_T)
+
+    """
+    num_A = A.shape[1]
+    corr_matrix = torch.corrcoef(torch.hstack([A, T]).T)
+    corr_vals = corr_matrix[num_A:, 0]
+    return corr_vals
+
+
 # Load Data
 A_train, T_train, A_pred_train, T_pred_train = loadData(BASE_DIR, "train")
 A_test, T_test, A_pred_test, T_pred_test = loadData(BASE_DIR, "test")
@@ -88,3 +113,20 @@ leakage_metric = Leakage(
 
 leak_val = leakage_metric.getAmortizedLeakage(A_train, T_train, T_pred_train)
 print(f"{leak_val=}")
+
+
+corr_val_train = calcCorr(A_train, T_train).mean().item()
+corr_val_test = calcCorr(A_test, T_test).mean().item()
+
+print("Correlation\n---------------------------------------------------------")
+print(f"Train Correlation = {corr_val_train}, Test Correlation = {corr_val_test}")
+print(f"Correlation Amp. = {corr_val_test - corr_val_train}")
+
+corr_val_train = calcCorr(A_train, T_train).abs().mean().item()
+corr_val_test = calcCorr(A_test, T_test).abs().mean().item()
+
+print("Absolute Correlation\n-------------------------------------------------")
+print(
+    f"Train Absolute Correlation = {corr_val_train}, Test Absolute Correlation = {corr_val_test}"
+)
+print(f"Absolute Correlation Amp. = {corr_val_test - corr_val_train}")
