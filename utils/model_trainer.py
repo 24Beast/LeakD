@@ -114,9 +114,7 @@ elif model_name == "squeezenet_1_0":
     model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
 elif model_name == "maxvit":
     model = models.maxvit_t(weights=models.MaxVit_T_Weights.IMAGENET1K_V1)
-    model.classifier = nn.Sequential(
-        nn.Linear(model.classifier.in_features, num_classes)
-    )
+    model.classifier[5] = nn.Linear(model.classifier[5].in_features, num_classes)
 
 model = model.to(DEVICE)
 
