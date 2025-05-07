@@ -1,6 +1,6 @@
 # Importing Libraries
 import torch
-import pandas
+import pandas as pd
 from DLA import DPA
 from Leakage import Leakage
 from attackerModels.ANN import simpleDenseModel
@@ -8,7 +8,24 @@ from tests.DBA import DirectionalBiasAmplification
 
 
 # Defining Constants
-BASE_DIR = "./models/mobile_v3_ratio_1_genderbal_1_bal_1/"
+MODELS = [
+    "maxvit",
+    "mobile_v2",
+    "mobile_v3",
+    "resnet18",
+    "squeezenet_1_0",
+    "squeezenet_1_1",
+    "swin",
+    "swin_s",
+    "vgg16",
+    "vit",
+    "vit_b_32",
+    "wide_resnet50",
+    "wide_resnet101",
+]
+OUT_DIR = "./unbalanced_outputs_2.csv"
+
+BASE_DIR = f"./models/{MODELS[0]}_ratio_3_genderbal_0_bal_0/"
 
 
 # Helper Function
@@ -47,86 +64,151 @@ def calcCorr(A: torch.tensor, T: torch.tensor) -> torch.tensor:
     return corr_vals
 
 
-# Load Data
-A_train, T_train, A_pred_train, T_pred_train = loadData(BASE_DIR, "train")
-A_test, T_test, A_pred_test, T_pred_test = loadData(BASE_DIR, "test")
+records = []
 
-# Accuracy Calc
-AtoT_acc = ((1.0 * (T_pred_train > 0.5) == T_train) * 1.0).mean()
-TtoA_acc = ((1.0 * (A_pred_train > 0.5) == A_train) * 1.0).mean()
-model_acc = {"AtoT": AtoT_acc, "TtoA": TtoA_acc}
+for curr_model in MODELS:
 
-# Attacker Model Initialization
-attackerModel_AtoT = simpleDenseModel(
-    2, 205, 2, numFirst=4, activations=["relu", "sigmoid", "sigmoid"]
-)
-attackerModel_TtoA = simpleDenseModel(
-    205, 2, 2, numFirst=4, activations=["relu", "sigmoid", "sigmoid"]
-)
+    BASE_DIR = f"./models/{curr_model}_ratio_3_genderbal_0_bal_0/"
 
-# Parameter Initialization
-dla_obj = DPA(
-    {"attacker_AtoT": attackerModel_AtoT, "attacker_TtoA": attackerModel_TtoA},
-    {
-        "learning_rate": 0.01,
-        "loss_function": "bce",
-        "epochs": 100,
-        "batch_size": 128,
-    },
-    model_acc,
-    "bce",
-    threshold=False,
-)
-leak_AtoT = dla_obj.getAmortizedLeakage(
-    A_train, T_train, T_pred_train, "AtoT"
-)  # , feat_test = A_test, data_test = T_test, pred_test = T_pred_test)
-print(f"leakage for AtoT: {leak_AtoT}")
-print("______________________________________")
-print("______________________________________")
+    # Load Data
+    A_train, T_train, A_pred_train, T_pred_train = loadData(BASE_DIR, "train")
+    A_test, T_test, A_pred_test, T_pred_test = loadData(BASE_DIR, "test")
 
-leak_TtoA = dla_obj.getAmortizedLeakage(
-    T_train, A_train, A_pred_train, "TtoA"
-)  # , feat_test = T_test, data_test = A_test, pred_test = A_pred_test)
-print(f"leakage for TtoA: {leak_TtoA}")
-print("______________________________________")
-print("______________________________________")
+    # Accuracy Calc
+    AtoT_acc = ((1.0 * (T_pred_train > 0.5) == T_train) * 1.0).mean()
+    TtoA_acc = ((1.0 * (A_pred_train > 0.5) == A_train) * 1.0).mean()
+    model_acc = {"AtoT": AtoT_acc, "TtoA": TtoA_acc}
 
-dba_metric = DirectionalBiasAmplification()
+    # Attacker Model Initialization
+    attackerModel_AtoT = simpleDenseModel(
+        2, 205, 2, numFirst=4, activations=["relu", "sigmoid", "sigmoid"]
+    )
+    attackerModel_TtoA = simpleDenseModel(
+        205, 2, 2, numFirst=4, activations=["relu", "sigmoid", "sigmoid"]
+    )
 
-dba_vals_AtoT = dba_metric._compute(T_pred_train, T_train, A_train)
-print(f"DBA AtoT : {dba_vals_AtoT['bias_amplification']}")
-dba_vals_TtoA = dba_metric._compute(A_pred_train, A_train, T_train)
-print(f"DBA TtoA : {dba_vals_TtoA['bias_amplification']}")
+    # Parameter Initialization
+    dla_obj = DPA(
+        {"attacker_AtoT": attackerModel_AtoT, "attacker_TtoA": attackerModel_TtoA},
+        {
+            "learning_rate": 0.01,
+            "loss_function": "bce",
+            "epochs": 100,
+            "batch_size": 128,
+        },
+        model_acc,
+        "bce",
+        threshold=False,
+    )
+    """
+    leak_AtoT = dla_obj.getAmortizedLeakage(
+        A_train,
+        T_train,
+        T_pred_train,
+        "AtoT",
+        feat_test=A_test,
+        data_test=T_test,
+        pred_test=T_pred_test,
+    )
+    
+    leak_TtoA = dla_obj.getAmortizedLeakage(
+        T_train,
+        A_train,
+        A_pred_train,
+        "TtoA",
+        feat_test=T_test,
+        data_test=A_test,
+        pred_test=A_pred_test,
+    )
+    """
 
-leakage_metric = Leakage(
-    {"attacker_D": attackerModel_TtoA, "sameModel": True},
-    {
-        "learning_rate": 0.01,
-        "loss_function": "bce",
-        "epochs": 50,
-        "batch_size": 128,
-    },
-    AtoT_acc,
-    "accuracy",
-    threshold=True,
-)
+    dba_metric = DirectionalBiasAmplification()
 
-leak_val = leakage_metric.getAmortizedLeakage(A_train, T_train, T_pred_train)
-print(f"{leak_val=}")
+    leakage_metric = Leakage(
+        {"attacker_D": attackerModel_TtoA, "sameModel": True},
+        {
+            "learning_rate": 0.01,
+            "loss_function": "bce",
+            "epochs": 100,
+            "batch_size": 128,
+        },
+        AtoT_acc,
+        "accuracy",
+        threshold=True,
+    )
 
+    leak_val = leakage_metric.getAmortizedLeakage(A_train, T_train, T_pred_train)
 
-corr_val_train = calcCorr(A_train, T_train).mean().item()
-corr_val_test = calcCorr(A_test, T_test).mean().item()
+    print(f"MODEL : {curr_model}")
+    """
+    print(f"leakage for AtoT: {leak_AtoT}")
+    print("______________________________________")
+    print("______________________________________")
+    
+    print(f"leakage for TtoA: {leak_TtoA}")
+    print("______________________________________")
+    print("______________________________________")
+    """
 
-print("Correlation\n---------------------------------------------------------")
-print(f"Train Correlation = {corr_val_train}, Test Correlation = {corr_val_test}")
-print(f"Correlation Amp. = {corr_val_test - corr_val_train}")
+    dba_vals_AtoT = dba_metric._compute(T_pred_train, T_train, A_train)
+    print(f"DBA AtoT : {dba_vals_AtoT['bias_amplification']}")
+    dba_vals_TtoA = dba_metric._compute(A_pred_train, A_train, T_train)
+    print(f"DBA TtoA : {dba_vals_TtoA['bias_amplification']}")
 
-corr_val_train = calcCorr(A_train, T_train).abs().mean().item()
-corr_val_test = calcCorr(A_test, T_test).abs().mean().item()
+    print(f"{leak_val=}")
 
-print("Absolute Correlation\n-------------------------------------------------")
-print(
-    f"Train Absolute Correlation = {corr_val_train}, Test Absolute Correlation = {corr_val_test}"
-)
-print(f"Absolute Correlation Amp. = {corr_val_test - corr_val_train}")
+    print("A -> T")
+    print("Correlation\n---------------------------------------------------------")
+    corr_val_train = calcCorr(A_train, T_train).mean().item()
+    corr_val_test = calcCorr(A_train, T_pred_train).mean().item()
+    corr_amp_AtoT = corr_val_test - corr_val_train
+
+    print(f"Train Correlation = {corr_val_train}, Test Correlation = {corr_val_test}")
+    print(f"Correlation Amp. = {corr_amp_AtoT}")
+
+    corr_val_train = calcCorr(A_train, T_train).abs().mean().item()
+    corr_val_test = calcCorr(A_train, T_pred_train).abs().mean().item()
+    corr_amp_abs_AtoT = corr_val_test - corr_val_train
+
+    print("Absolute Correlation\n-------------------------------------------------")
+    print(
+        f"Train Absolute Correlation = {corr_val_train}, Test Absolute Correlation = {corr_val_test}"
+    )
+    print(f"Absolute Correlation Amp. = {corr_amp_abs_AtoT}")
+
+    print("T -> A")
+    print("Correlation\n---------------------------------------------------------")
+    corr_val_train = calcCorr(A_train, T_train).mean().item()
+    corr_val_test = calcCorr(A_pred_train, T_train).mean().item()
+    corr_amp_TtoA = corr_val_test - corr_val_train
+
+    print(f"Train Correlation = {corr_val_train}, Test Correlation = {corr_val_test}")
+    print(f"Correlation Amp. = {corr_amp_TtoA}")
+
+    corr_val_train = calcCorr(A_train, T_train).abs().mean().item()
+    corr_val_test = calcCorr(A_pred_train, T_train).abs().mean().item()
+    corr_amp_abs_TtoA = corr_val_test - corr_val_train
+
+    print("Absolute Correlation\n-------------------------------------------------")
+    print(
+        f"Train Absolute Correlation = {corr_val_train}, Test Absolute Correlation = {corr_val_test}"
+    )
+    print(f"Absolute Correlation Amp. = {corr_amp_abs_TtoA}")
+
+    curr_item = {
+        "model": curr_model,
+        "Correlation_AtoT": corr_amp_AtoT,
+        "Correlation_TtoA": corr_amp_TtoA,
+        "AbsoluteCorrelation_AtoT": corr_amp_abs_AtoT,
+        "AbsoluteCorrelation_TtoA": corr_amp_abs_TtoA,
+        #        "DPA_AtoT" : leak_AtoT,
+        #        "DPA_TtoA" : leak_TtoA,
+        "DBA_AtoT": dba_vals_AtoT["bias_amplification"],
+        "DBA_TtoA": dba_vals_TtoA["bias_amplification"],
+        "Leakage": leak_val,
+    }
+    records.append(curr_item)
+
+record_df = pd.DataFrame(records)
+
+record_df.to_csv(OUT_DIR)

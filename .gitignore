@@ -3,3 +3,6 @@ models
 OPS*.csv
 *.pt
 *.pyc
+*.csv
+utils/cav
+corr_Scores.py

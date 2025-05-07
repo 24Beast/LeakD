@@ -397,6 +397,12 @@ class ImSituVerbGenderFeature(data.Dataset):
         return len(self.targets)
 
 
+class ImSituConceptDataset(data.Dataset):
+
+    def __init__(self, gender: bool = True, task_num: int = 0):
+        pass
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
