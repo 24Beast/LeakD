@@ -145,7 +145,7 @@ elif model_name == "squeezenet_1_1":
 elif model_name == "wide_resnet50":
     model = models.wide_resnet50_2(weights=models.Wide_ResNet50_2_Weights.IMAGENET1K_V1)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
-    layers = "avgpool"
+    layers = "layer4.2.conv3"
 elif model_name == "wide_resnet101":
     model = models.wide_resnet101_2(
         weights=models.Wide_ResNet101_2_Weights.IMAGENET1K_V1
@@ -185,7 +185,7 @@ mytcav = ModifiedTCAV(
 
 # Getting TCAV scores
 tcav_scores = []
-for index in relevant_ind[:5]:
+for index in relevant_ind:
     ind_scores = []
     for batch in test_loader:
         imgs = batch[0].to(DEVICE)
@@ -199,7 +199,7 @@ for index in relevant_ind[:5]:
     tcav_scores.append(np.array(ind_scores))
 
 save_name = model_dir + "tcav_gender.npy"
-if(args.task_cav):
+if args.task_cav:
     save_name = model_dir + "tcav_task.npy"
 
 with open(save_name, "wb") as f:
