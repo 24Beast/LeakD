@@ -24,7 +24,7 @@ BASE_DIR = "C:/Users/btokas/Projects/Datasets/imSitu/"
 
 # ARG_PARSER
 parser = argparse.ArgumentParser()
-parser.add_argument("--model", default="mobile_v2")
+parser.add_argument("--model", default="wide_resnet50")
 parser.add_argument("--balanced", default=1, type=int)
 parser.add_argument("--ratio", default=1, type=int)  # Set 1 for balanced
 parser.add_argument("--gender_balanced", default=1, type=int)  # Set 1 for balanced
@@ -127,13 +127,13 @@ elif model_name == "resnet18":
 elif model_name == "vgg16":
     model = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
     model.classifier[6] = nn.Linear(model.classifier[6].in_features, num_classes)
-    layers = "classifier.3"
+    layers = "classifier.4"
 elif model_name == "mobile_v3":
     model = models.mobilenet_v3_large(
         weights=models.MobileNet_V3_Large_Weights.IMAGENET1K_V1
     )
     model.classifier[3] = nn.Linear(model.classifier[3].in_features, num_classes)
-    layers = "classifier.0"
+    layers = "classifier.1"
 elif model_name == "mobile_v2":
     model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
     model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
@@ -141,7 +141,7 @@ elif model_name == "mobile_v2":
 elif model_name == "squeezenet_1_1":
     model = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.IMAGENET1K_V1)
     model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
-    layers = "classifier.0"
+    layers = "features.12.expand3x3_activation"
 elif model_name == "wide_resnet50":
     model = models.wide_resnet50_2(weights=models.Wide_ResNet50_2_Weights.IMAGENET1K_V1)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
@@ -151,11 +151,11 @@ elif model_name == "wide_resnet101":
         weights=models.Wide_ResNet101_2_Weights.IMAGENET1K_V1
     )
     model.fc = nn.Linear(model.fc.in_features, num_classes)
-    layers = "avgpool"
+    layers = "layer4.2.conv3"
 elif model_name == "vit_b_32":
     model = models.vit_b_32(weights=models.ViT_B_32_Weights.IMAGENET1K_V1)
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
-    layers = "encoder.ln"
+    layers = "encoder.layers.encoder_layer_11.mlp.1"
 elif model_name == "swin_s":
     model = models.swin_s(pretrained=True)
     model.head = nn.Linear(model.head.in_features, num_classes)
@@ -163,7 +163,7 @@ elif model_name == "swin_s":
 elif model_name == "squeezenet_1_0":
     model = models.squeezenet1_0(weights=models.SqueezeNet1_0_Weights.IMAGENET1K_V1)
     model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
-    layers = "classifier.0"
+    layers = "features.12.expand3x3_activation"
 elif model_name == "maxvit":
     model = models.maxvit_t(weights=models.MaxVit_T_Weights.IMAGENET1K_V1)
     model.classifier[5] = nn.Linear(model.classifier[5].in_features, num_classes)
@@ -198,5 +198,9 @@ for index in relevant_ind[:5]:
         ind_scores.append(curr_scores["0-1"][layers]["abs_magnitude"].cpu())
     tcav_scores.append(np.array(ind_scores))
 
-with open(model_dir + f"tcav_balanced_{args.balanced}.npy", "wb") as f:
+save_name = model_dir + "tcav_gender.npy"
+if(args.task_cav):
+    save_name = model_dir + "tcav_task.npy"
+
+with open(save_name, "wb") as f:
     np.save(f, np.array(tcav_scores))
