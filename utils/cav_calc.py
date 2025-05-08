@@ -3,20 +3,19 @@ import os
 import glob
 import torch
 import argparse
-import pandas as pd
+import numpy as np
 from PIL import Image
 import torch.nn as nn
 from dataLoaders import ImSituVerbGender
 from torch.utils.data import DataLoader
 from torchvision import transforms, models
-from captum.attr import LayerGradientXActivation, LayerIntegratedGradients
+from captum.attr import LayerIntegratedGradients
 from interpret import ModifiedTCAV
 from captum.concept import Concept
 from captum.concept._utils.data_iterator import (
     dataset_to_dataloader,
     CustomIterableDataset,
 )
-from captum.concept._utils.common import concepts_to_str
 
 # Configurations
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -120,17 +119,20 @@ if model_name == "vit":
 elif model_name == "swin":
     model = models.swin_t(pretrained=True)
     model.head = nn.Linear(model.head.in_features, num_classes)
+    layers = "flatten"
 elif model_name == "resnet18":
     model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
 elif model_name == "vgg16":
     model = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
     model.classifier[6] = nn.Linear(model.classifier[6].in_features, num_classes)
+    layers = "avgpool"
 elif model_name == "mobile_v3":
     model = models.mobilenet_v3_large(
         weights=models.MobileNet_V3_Large_Weights.IMAGENET1K_V1
     )
     model.classifier[3] = nn.Linear(model.classifier[3].in_features, num_classes)
+    layers = "classifier.0"
 elif model_name == "mobile_v2":
     model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
     model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
@@ -138,26 +140,33 @@ elif model_name == "mobile_v2":
 elif model_name == "squeezenet_1_1":
     model = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.IMAGENET1K_V1)
     model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
+    layers = "classifier.0"
 elif model_name == "wide_resnet50":
     model = models.wide_resnet50_2(weights=models.Wide_ResNet50_2_Weights.IMAGENET1K_V1)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
+    layers = "avgpool"
 elif model_name == "wide_resnet101":
     model = models.wide_resnet101_2(
         weights=models.Wide_ResNet101_2_Weights.IMAGENET1K_V1
     )
     model.fc = nn.Linear(model.fc.in_features, num_classes)
+    layers = "avgpool"
 elif model_name == "vit_b_32":
     model = models.vit_b_32(weights=models.ViT_B_32_Weights.IMAGENET1K_V1)
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+    layers = "encoder.ln"
 elif model_name == "swin_s":
     model = models.swin_s(pretrained=True)
     model.head = nn.Linear(model.head.in_features, num_classes)
+    layers = "flatten"
 elif model_name == "squeezenet_1_0":
     model = models.squeezenet1_0(weights=models.SqueezeNet1_0_Weights.IMAGENET1K_V1)
     model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
+    layers = "classifier.0"
 elif model_name == "maxvit":
     model = models.maxvit_t(weights=models.MaxVit_T_Weights.IMAGENET1K_V1)
     model.classifier[5] = nn.Linear(model.classifier[5].in_features, num_classes)
+    layers = "classifier.3"
 
 model_dir = f"../models/{model_name}_ratio_{args.ratio}_genderbal_{args.gender_balanced}_bal_{args.balanced}/"
 model_path = model_dir + f"best_{model_name}_model.pth"
@@ -175,12 +184,18 @@ mytcav = ModifiedTCAV(
 
 # Getting TCAV scores
 tcav_scores = []
-for batch in test_loader:
-    imgs = batch[0].to(DEVICE)
-    curr_scores = mytcav.interpret(
-        inputs=imgs,
-        experimental_sets=[concepts],
-        target=2,
-        n_steps=5,
-    )
-    tcav_scores.append(curr_scores)
+for index in relevant_ind[:5]:
+    ind_scores = []
+    for batch in test_loader:
+        imgs = batch[0].to(DEVICE)
+        curr_scores = mytcav.interpret(
+            inputs=imgs,
+            experimental_sets=[concepts],
+            target = index,
+            n_steps=5,
+        )
+        ind_scores.append(curr_scores['0-1'][layers]['abs_magnitude'].cpu())
+    tcav_scores.append(np.array(ind_scores))
+
+with open(model_dir + "tcav.npy", "wb") as f:
+    np.save(f, np.array(tcav_scores))
