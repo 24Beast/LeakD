@@ -123,10 +123,11 @@ elif model_name == "swin":
 elif model_name == "resnet18":
     model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
+    layers = "avgpool"
 elif model_name == "vgg16":
     model = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
     model.classifier[6] = nn.Linear(model.classifier[6].in_features, num_classes)
-    layers = "avgpool"
+    layers = "classifier.3"
 elif model_name == "mobile_v3":
     model = models.mobilenet_v3_large(
         weights=models.MobileNet_V3_Large_Weights.IMAGENET1K_V1
@@ -172,7 +173,7 @@ model_dir = f"../models/{model_name}_ratio_{args.ratio}_genderbal_{args.gender_b
 model_path = model_dir + f"best_{model_name}_model.pth"
 
 model = model.to(DEVICE)
-model.load_state_dict(torch.load(model_path, map_location=DEVICE))
+model.load_state_dict(torch.load(model_path, map_location=DEVICE, weights_only=False))
 model.eval()
 
 # Initializing TCAV
@@ -191,11 +192,11 @@ for index in relevant_ind[:5]:
         curr_scores = mytcav.interpret(
             inputs=imgs,
             experimental_sets=[concepts],
-            target = index,
+            target=index,
             n_steps=5,
         )
-        ind_scores.append(curr_scores['0-1'][layers]['abs_magnitude'].cpu())
+        ind_scores.append(curr_scores["0-1"][layers]["abs_magnitude"].cpu())
     tcav_scores.append(np.array(ind_scores))
 
-with open(model_dir + "tcav.npy", "wb") as f:
+with open(model_dir + f"tcav_balanced_{args.balanced}.npy", "wb") as f:
     np.save(f, np.array(tcav_scores))
