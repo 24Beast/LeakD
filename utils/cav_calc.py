@@ -24,7 +24,7 @@ BASE_DIR = "C:/Users/btokas/Projects/Datasets/imSitu/"
 
 # ARG_PARSER
 parser = argparse.ArgumentParser()
-parser.add_argument("--model", default="wide_resnet50")
+parser.add_argument("--model", default="mobile_v2")
 parser.add_argument("--balanced", default=1, type=int)
 parser.add_argument("--ratio", default=1, type=int)  # Set 1 for balanced
 parser.add_argument("--gender_balanced", default=1, type=int)  # Set 1 for balanced
@@ -35,6 +35,8 @@ parser.add_argument("--img_dir", default=BASE_DIR + "of500_images_resized/")
 parser.add_argument("--ann_dir", default=BASE_DIR)
 args = parser.parse_args()
 print(args)
+
+args.task_cav = True
 
 # Data definitions
 num_classes = 207
@@ -97,17 +99,19 @@ concepts = []
 CONCEPT_DIR = BASE_DIR + "/concepts_balanced/"
 relevant_ind = []
 if args.task_cav:
-    CONCEPT_DIR = CONCEPT_DIR + "task/"
+    TASK_CONCEPT_DIR = CONCEPT_DIR + "task/"
+    RAND_CONCEPT_DIR = CONCEPT_DIR + "random/"
+    rand_concept = assemble_concept("mix", 211, RAND_CONCEPT_DIR)
     for i in range(num_classes - 2):
         concept_name = "t_" + str(i).zfill(3)
-        curr_concept = assemble_concept(concept_name, i, CONCEPT_DIR)
-        concepts.append(curr_concept)
+        curr_concept = assemble_concept(concept_name, i, TASK_CONCEPT_DIR)
+        concepts.append([curr_concept, rand_concept])
     relevant_ind = [205, 206]
 else:
-    CONCEPT_DIR = CONCEPT_DIR + "gender/"
-    male_concept = assemble_concept("male", 0, CONCEPT_DIR)
-    female_concept = assemble_concept("female", 1, CONCEPT_DIR)
-    concepts = [male_concept, female_concept]
+    GENDER_CONCEPT_DIR = CONCEPT_DIR + "gender/"
+    male_concept = assemble_concept("male", 0, GENDER_CONCEPT_DIR)
+    female_concept = assemble_concept("female", 1, GENDER_CONCEPT_DIR)
+    concepts = [[male_concept, female_concept]]
     relevant_ind = [i for i in range(205)]
 
 # Load Pretrained model and modify
@@ -191,11 +195,17 @@ for index in relevant_ind:
         imgs = batch[0].to(DEVICE)
         curr_scores = mytcav.interpret(
             inputs=imgs,
-            experimental_sets=[concepts],
+            experimental_sets=concepts,
             target=index,
             n_steps=5,
         )
-        ind_scores.append(curr_scores["0-1"][layers]["abs_magnitude"].cpu())
+        if args.task_cav:
+            temp_score = np.zeros((num_classes - 2, 2))
+            for i in range(num_classes - 2):
+                temp_score[i] = curr_scores[f"{i}-211"][layers]["abs_magnitude"].cpu()
+            ind_scores.append(temp_score)
+        else:
+            ind_scores.append(curr_scores["0-1"][layers]["abs_magnitude"].cpu())
     tcav_scores.append(np.array(ind_scores))
 
 save_name = model_dir + "tcav_gender.npy"
